@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { auth } from "@clerk/nextjs/server";
+import { isAuthorizedDoctor } from "@/lib/auth/doctor-access";
 import { createServiceClient } from "@/lib/supabase/server";
 import {
   sendAppointmentConfirmedEmail,
@@ -16,7 +17,7 @@ export async function updateAppointmentStatus(
   status: z.infer<typeof statusSchema>
 ) {
   const { userId } = await auth();
-  if (!userId) {
+  if (!isAuthorizedDoctor(userId)) {
     return { success: false as const, error: "unauthenticated" as const };
   }
 

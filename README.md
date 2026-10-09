@@ -1,6 +1,48 @@
+# موعد | Arabic Doctor Appointment Platform
+
+A responsive **Arabic / RTL** single-clinic appointment system built with Next.js 16 (App Router), Tailwind CSS 4, Supabase, Clerk, WhatsApp OTP and Paymob.
+
+## Quick start
+
+1. `npm ci`
+2. Copy `.env.example` to `.env.local` and configure every integration you need. **Set `DOCTOR_CLERK_USER_IDS`** to the comma-separated Clerk IDs authorized to manage the clinic. No IDs means no doctor will be authorized.
+3. Apply the SQL files in `supabase/migrations/` in order, and expose the `clinic` schema in Supabase Data API settings.
+4. `npm run dev` → visit `http://localhost:3000`.
+5. Visit `/login` for patient WhatsApp OTP. For the doctor use `/sign-in`, then `/dashboard` after adding the Clerk user ID to the allowlist.
+
+## Patient routes
+
+| URL | Purpose |
+| --- | --- |
+| `/` | Landing page |
+| `/login`, `/verify` | Patient OTP sign-in and verification (also registration) |
+| `/book` | Appointment booking (login required) |
+| `/my-appointments` | Appointment management, cancellation, payment and post-visit review |
+| `/profile` | Profile and logout (login required) |
+| `/payment` | Start Paymob checkout for eligible appointments |
+| `/reviews` | Published patient feedback |
+| `/about`, `/contact`, `/privacy` | Informational pages |
+
+## Doctor routes
+
+`/sign-in` uses **Clerk** and is separate from patient OTP login. `/dashboard` and its `appointments`, `availability`, `reviews`, `settings` and `stats` subroutes require a doctor allowed via `DOCTOR_CLERK_USER_IDS` (user IDs, not email addresses). Doctor actions also enforce this allowlist.
+
+See [CHANGELOG_UI.md](CHANGELOG_UI.md) for the UI update and [`.env.example`](.env.example) for environment configuration. API keys, credentials and service-role keys **must never be exposed to browser code**.
+
+### Production notes
+
+- The WhatsApp OTP sender must use an approved authentication message template for recipients outside WhatsApp's allowed service window. The current sender is a starting point, **not production-compliant as-is**.
+- Verify Paymob intention/webhook fields with a live sandbox round trip. A successful redirect alone is not payment confirmation.
+- Add real clinic contact information and finalize a privacy policy before launching publicly.
+- Stripe/other gateways are not added; patient payment is wired to the existing Paymob integration.
+
+---
+
+## Original implementation documentation
+
 # Doctor Appointment App — generated files
 
-Everything built in this chat, organized to drop into a Next.js 15
+Everything built in this chat, organized to drop into a Next.js 16
 (App Router) project. Paths below are **relative to your project
 root** — this assumes a project **without** the `src/` folder. If
 your project uses `src/`, move `actions/`, `app/`, `components/`,
@@ -122,6 +164,3 @@ NEXT_PUBLIC_APP_URL=        # e.g. https://yourapp.vercel.app
 - Paymob webhook: `obj.order.merchant_order_id` vs `obj.merchant_order_id`
   isn't 100% pinned down for the Intention API — verify against a real
   test transaction before going live.
-- No `reviews` page has been built on the **patient-facing public**
-  side (only the doctor's moderation view exists) — nothing shows
-  published reviews to prospective patients yet.

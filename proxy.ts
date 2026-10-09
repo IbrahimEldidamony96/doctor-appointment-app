@@ -1,6 +1,7 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { verifyPatientJwt } from "@/lib/auth/patient-jwt";
+import { isAuthorizedDoctor } from "@/lib/auth/doctor-access";
 
 // Doctor routes — protected by Clerk.
 const isDoctorRoute = createRouteMatcher(["/dashboard(.*)"]);
@@ -11,6 +12,7 @@ const isProtectedPatientRoute = createRouteMatcher([
   "/book(.*)",
   "/my-appointments(.*)",
   "/payment(.*)",
+  "/profile(.*)",
 ]);
 
 const PATIENT_SESSION_COOKIE = "patient_session";
@@ -18,6 +20,8 @@ const PATIENT_SESSION_COOKIE = "patient_session";
 export default clerkMiddleware(async (auth, req) => {
   if (isDoctorRoute(req)) {
     await auth.protect();
+    const { userId } = await auth();
+    if (!isAuthorizedDoctor(userId)) return NextResponse.redirect(new URL("/doctor-access-denied", req.url));
     return;
   }
 

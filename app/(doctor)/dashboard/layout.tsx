@@ -1,37 +1,5 @@
-import Link from "next/link";
 import { UserButton } from "@clerk/nextjs";
-
-const navItems = [
-  { href: "/dashboard", label: "نظرة عامة" },
-  { href: "/dashboard/appointments", label: "المواعيد" },
-  { href: "/dashboard/availability", label: "أوقات العمل" },
-  { href: "/dashboard/reviews", label: "التقييمات" },
-  { href: "/dashboard/settings", label: "الإعدادات" },
-  { href: "/dashboard/stats", label: "الإحصاءات" },
-];
-
-export default function DoctorDashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="min-h-screen">
-      <header className="flex items-center justify-between border-b px-4 py-3">
-        <nav className="flex gap-4 overflow-x-auto text-sm">
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="whitespace-nowrap hover:underline"
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-        <UserButton afterSignOutUrl="/" />
-      </header>
-      <main className="mx-auto max-w-3xl px-4 py-6">{children}</main>
-    </div>
-  );
+import { DashboardLogo, DashboardNav, DashboardViewSite } from "@/components/doctor/dashboard-nav";
+export default function DoctorDashboardLayout({ children }: { children: React.ReactNode }) {
+  return <div className="min-h-screen bg-[#f5f9fa]"><header className="sticky top-0 z-40 border-b bg-white/95 backdrop-blur-xl"><div className="container-app flex h-19 items-center justify-between gap-3"><DashboardLogo/><div className="flex items-center gap-4"><span className="hidden text-xs font-bold text-slate-500 sm:block">لوحة إدارة العيادة</span><DashboardViewSite/><UserButton/></div></div></header><div className="container-app grid gap-7 pb-16 pt-6 lg:grid-cols-[245px_minmax(0,1fr)]"><aside className="lg:sticky lg:top-25 lg:self-start"><div className="surface-sm p-3 lg:p-4"><p className="hidden px-4 pb-3 text-xs font-bold text-muted-foreground lg:block">القائمة الرئيسية</p><DashboardNav/></div></aside><main className="min-w-0">{children}</main></div></div>;
 }

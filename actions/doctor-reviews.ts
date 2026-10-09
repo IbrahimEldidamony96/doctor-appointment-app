@@ -2,11 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { auth } from "@clerk/nextjs/server";
+import { isAuthorizedDoctor } from "@/lib/auth/doctor-access";
 import { createServiceClient } from "@/lib/supabase/server";
 
 export async function toggleReviewPublished(id: string, isPublished: boolean) {
   const { userId } = await auth();
-  if (!userId) return { success: false as const, error: "unauthenticated" as const };
+  if (!isAuthorizedDoctor(userId)) return { success: false as const, error: "unauthenticated" as const };
 
   const supabase = createServiceClient();
   const { error } = await supabase

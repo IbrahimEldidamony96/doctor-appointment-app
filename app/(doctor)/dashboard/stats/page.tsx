@@ -1,4 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
+import { isAuthorizedDoctor } from "@/lib/auth/doctor-access";
 import { redirect } from "next/navigation";
 import { createServiceClient } from "@/lib/supabase/server";
 
@@ -17,6 +18,7 @@ type Stats = {
 export default async function StatsPage() {
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");
+  if (!isAuthorizedDoctor(userId)) redirect("/doctor-access-denied");
 
   const supabase = createServiceClient();
   // Cast until `supabase gen types` is re-run after adding this function.
@@ -43,12 +45,12 @@ export default async function StatsPage() {
 
   return (
     <div>
-      <h1 className="mb-6 text-xl font-semibold">الإحصاءات</h1>
-      <div className="grid grid-cols-2 gap-3">
+      <h1 className="mb-7 page-title">الإحصاءات</h1>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {cards.map((card) => (
-          <div key={card.label} className="rounded-lg border p-3">
-            <p className="text-xs text-muted-foreground">{card.label}</p>
-            <p className="mt-1 text-lg font-semibold">{card.value}</p>
+          <div key={card.label} className="surface-sm p-5 sm:p-6">
+            <p className="text-sm text-muted-foreground">{card.label}</p>
+            <p className="mt-2 text-2xl font-black">{card.value}</p>
           </div>
         ))}
       </div>

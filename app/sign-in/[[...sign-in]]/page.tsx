@@ -1,0 +1,4 @@
+import Link from "next/link";
+import { SignIn } from "@clerk/nextjs";
+export const metadata = { title: "دخول الطبيب" };
+export default function DoctorSignInPage() { return <main className="grid min-h-screen place-items-center bg-[#eaf6f4] p-6" dir="rtl"><div className="flex w-full max-w-md flex-col items-center gap-5"><Link href="/" className="text-2xl font-black text-teal-800">موعد<span className="text-teal-500">.</span></Link><div className="text-center"><h1 className="text-2xl font-extrabold">دخول إدارة العيادة</h1><p className="mt-2 text-sm text-muted-foreground">هذه الصفحة مخصصة للطبيب وإدارة العيادة.</p></div><SignIn routing="path" path="/sign-in" fallbackRedirectUrl="/dashboard" signUpUrl="/"/><Link href="/" className="text-sm font-bold text-teal-700">الرجوع للموقع</Link></div></main>; }
