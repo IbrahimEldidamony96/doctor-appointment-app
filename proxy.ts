@@ -1,34 +1,23 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { verifyPatientJwt } from "@/lib/auth/patient-jwt";
-import { isAuthorizedDoctor } from "@/lib/auth/doctor-access";
 
-// Doctor routes — protected by Clerk.
-const isDoctorRoute = createRouteMatcher(["/dashboard(.*)"]);
-
-// Patient routes that require a signed-in patient. /login and /verify
-// stay public — they're the entry points before a session exists.
+const isDashboardRoute = createRouteMatcher(["/dashboard(.*)"]);
 const isProtectedPatientRoute = createRouteMatcher([
-  "/book(.*)",
-  "/my-appointments(.*)",
-  "/payment(.*)",
-  "/profile(.*)",
+  "/book(.*)", "/my-appointments(.*)", "/payment(.*)", "/profile(.*)",
 ]);
 
-const PATIENT_SESSION_COOKIE = "patient_session";
-
 export default clerkMiddleware(async (auth, req) => {
-  if (isDoctorRoute(req)) {
+  // Clerk authenticates dashboard users here; role authorization is done on
+  // server layouts, page loaders and EVERY mutation using current DB membership.
+  if (isDashboardRoute(req)) {
     await auth.protect();
-    const { userId } = await auth();
-    if (!isAuthorizedDoctor(userId)) return NextResponse.redirect(new URL("/doctor-access-denied", req.url));
     return;
   }
 
   if (isProtectedPatientRoute(req)) {
-    const token = req.cookies.get(PATIENT_SESSION_COOKIE)?.value;
+    const token = req.cookies.get("patient_session")?.value;
     const payload = token ? await verifyPatientJwt(token) : null;
-
     if (!payload) {
       const loginUrl = new URL("/login", req.url);
       loginUrl.searchParams.set("redirect", req.nextUrl.pathname);
@@ -38,9 +27,5 @@ export default clerkMiddleware(async (auth, req) => {
 });
 
 export const config = {
-  matcher: [
-    // Run on everything except Next internals and static files
-    "/((?!_next|.*\\..*).*)",
-    "/(api|trpc)(.*)",
-  ],
+  matcher: ["/((?!_next|.*\\..*).*)", "/(api|trpc)(.*)"],
 };
