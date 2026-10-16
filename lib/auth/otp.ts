@@ -1,81 +1,47 @@
 import "server-only";
-import { createHmac, randomInt } from "crypto";
+import { createHmac, randomInt } from "node:crypto";
 import { createServiceClient } from "@/lib/supabase/server";
-import { sendWhatsAppMessage } from "@/lib/whatsapp";
+import { assertOtpTemplateConfigured, sendWhatsAppOtp } from "@/lib/whatsapp";
+import { getAuthSecret } from "./secrets";
 
-const OTP_TTL_MINUTES = 5;
-const MAX_ATTEMPTS = 5;
+type FailReason = "not_found" | "expired" | "too_many_attempts" | "invalid_code";
+type IssueResult = { success: true } | { success: false; reason: "too_many_requests"; retryAfter: number };
+type VerifyResult = { success: true } | { success: false; reason: FailReason };
 
-/**
- * HMAC the code before storing it — never store the raw OTP.
- * Uses OTP_HASH_SECRET, a dedicated secret (keep separate from
- * PATIENT_JWT_SECRET so rotating one doesn't affect the other).
- */
 function hashCode(phone: string, code: string) {
-  const secret = process.env.OTP_HASH_SECRET;
-  if (!secret) throw new Error("Missing OTP_HASH_SECRET");
-  return createHmac("sha256", secret).update(`${phone}:${code}`).digest("hex");
+  return createHmac("sha256", getAuthSecret("OTP_HASH_SECRET"))
+    .update(`${phone}:${code}`).digest("hex");
 }
 
-export async function sendOtp(phone: string) {
-  const code = randomInt(100000, 999999).toString();
-  const codeHash = hashCode(phone, code);
-  const expiresAt = new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000);
-
-  const supabase = createServiceClient();
-  const { error } = await supabase.from("otp_codes").insert({
-    phone,
-    code_hash: codeHash,
-    expires_at: expiresAt.toISOString(),
+export async function sendOtp(phone: string): Promise<IssueResult> {
+  assertOtpTemplateConfigured();
+  const code = randomInt(100000, 1000000).toString();
+  const { data, error } = await createServiceClient().rpc("issue_otp", {
+    p_phone: phone, p_code_hash: hashCode(phone, code),
   });
-
-  if (error) throw error;
-
-  await sendWhatsAppMessage(
-    phone,
-    `كود التحقق: ${code}\nصالح لمدة ${OTP_TTL_MINUTES} دقايق.`
-  );
+  if (error || !data || typeof data !== "object" || Array.isArray(data)) {
+    throw new Error("OTP issuance unavailable");
+  }
+  const result = data as { success?: boolean; reason?: string; retry_after?: number };
+  if (!result.success) {
+    if (result.reason !== "too_many_requests") throw new Error("Unexpected OTP issuer response");
+    return { success: false, reason: "too_many_requests", retryAfter: result.retry_after ?? 60 };
+  }
+  await sendWhatsAppOtp(phone, code);
+  return { success: true };
 }
-
-type VerifyResult =
-  | { success: true }
-  | { success: false; reason: "not_found" | "expired" | "too_many_attempts" | "invalid_code" };
 
 export async function verifyOtp(phone: string, code: string): Promise<VerifyResult> {
-  const supabase = createServiceClient();
-
-  const { data: otpRow, error } = await supabase
-    .from("otp_codes")
-    .select("*")
-    .eq("phone", phone)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (error || !otpRow) {
-    return { success: false, reason: "not_found" };
+  const { data, error } = await createServiceClient().rpc("verify_otp", {
+    p_phone: phone, p_code_hash: hashCode(phone, code),
+  });
+  if (error || !data || typeof data !== "object" || Array.isArray(data)) {
+    throw new Error("OTP verification unavailable");
   }
-
-  if (new Date(otpRow.expires_at) < new Date()) {
-    return { success: false, reason: "expired" };
+  const result = data as { success?: boolean; reason?: string };
+  if (result.success === true) return { success: true };
+  if (["not_found", "expired", "too_many_attempts", "invalid_code"].includes(result.reason ?? "")) {
+    return { success: false, reason: result.reason as FailReason };
   }
-
-  if (otpRow.attempts >= MAX_ATTEMPTS) {
-    return { success: false, reason: "too_many_attempts" };
-  }
-
-  const isValid = hashCode(phone, code) === otpRow.code_hash;
-
-  if (!isValid) {
-    await supabase
-      .from("otp_codes")
-      .update({ attempts: otpRow.attempts + 1 })
-      .eq("id", otpRow.id);
-    return { success: false, reason: "invalid_code" };
-  }
-
-  // Consume the OTP so it can't be replayed.
-  await supabase.from("otp_codes").delete().eq("id", otpRow.id);
-
-  return { success: true };
+  throw new Error("Unexpected OTP verification response");
 }

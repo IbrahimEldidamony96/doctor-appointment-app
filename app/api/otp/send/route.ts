@@ -1,50 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { sendOtp } from "@/lib/auth/otp";
-import { createServiceClient } from "@/lib/supabase/server";
+import { PHONE_PATTERN } from "@/lib/auth/constants";
 
-const SEND_COOLDOWN_SECONDS = 60;
-
-const bodySchema = z.object({
-  phone: z.string().regex(/^\+[1-9]\d{7,14}$/, "invalid phone"), // E.164
-});
+const schema = z.object({ phone: z.string().regex(PHONE_PATTERN) });
 
 export async function POST(req: NextRequest) {
-  const parsed = bodySchema.safeParse(await req.json());
-
-  if (!parsed.success) {
-    return NextResponse.json({ error: "invalid_phone" }, { status: 400 });
+  if (!req.headers.get("content-type")?.toLowerCase().startsWith("application/json")) {
+    return NextResponse.json({ error: "unsupported_media_type" }, { status: 415 });
   }
-
-  const { phone } = parsed.data;
-  const supabase = createServiceClient();
-
-  // Simple resend cooldown — block a new send within SEND_COOLDOWN_SECONDS
-  // of the last one for this phone.
-  const { data: recent } = await supabase
-    .from("otp_codes")
-    .select("created_at")
-    .eq("phone", phone)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (recent) {
-    const secondsSince =
-      (Date.now() - new Date(recent.created_at).getTime()) / 1000;
-
-    if (secondsSince < SEND_COOLDOWN_SECONDS) {
-      return NextResponse.json(
-        {
-          error: "too_many_requests",
-          retryAfter: Math.ceil(SEND_COOLDOWN_SECONDS - secondsSince),
-        },
-        { status: 429 }
-      );
+  let raw: unknown;
+  try { raw = await req.json(); } catch {
+    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
+  }
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) return NextResponse.json({ error: "invalid_phone" }, { status: 400 });
+  try {
+    const result = await sendOtp(parsed.data.phone);
+    if (!result.success) {
+      return NextResponse.json({ error: result.reason, retryAfter: result.retryAfter }, {
+        status: 429, headers: { "Retry-After": String(result.retryAfter), "Cache-Control": "no-store" },
+      });
     }
+    return NextResponse.json({ success: true }, { headers: { "Cache-Control": "no-store" } });
+  } catch {
+    return NextResponse.json({ error: "otp_service_unavailable" }, { status: 503 });
   }
-
-  await sendOtp(phone);
-
-  return NextResponse.json({ success: true });
 }
