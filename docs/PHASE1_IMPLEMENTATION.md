@@ -19,6 +19,14 @@ This document complements `docs/DOCTOR_APP_ANALYSIS.md`. It tracks changes imple
 8. **Admin:** Doctor availability edits validate clock/date values and return errors when delete/update affects no rows.
 9. **Structure:** Removed duplicate conflicting `app/page.tsx` so the styled `app/(patient)/page.tsx` owns `/`. Supabase application imports use the more complete schema types in `lib/supabase/database.types.ts`.
 
+## Build verification update (2026-10-16)
+
+- Fixed **TS1117** duplicate `payment_in_progress` property in `components/patient/appointment-card.tsx` (commit `38304f6`).
+- Fixed a separate production typecheck blocker: repository tests import `@electric-sql/pglite`, which is absent from committed dependencies/lockfile, while `tsconfig.json` included all `tests/**/*.ts`. Tests now remain outside the production tsconfig's typecheck and are run separately by the CI test step (commit `c10ddfc`).
+- **Build remains unverified.** GitHub Actions runs failed before allocating a runner and before any build/test command executed. The assistant's container does have Node.js, but its network cannot access GitHub or npm to download the repository or dependencies; there is no preexisting local checkout/node_modules.
+- **Required verification:** From this branch in a networked checkout with Node.js 22 and valid environment variables, run `npm ci && npm run build`. Only label the build passing after seeing a successful exit code and the actual Next.js output. Tests need their separately installed dev test tooling.
+- **Status:** Changes are committed to the feature branch, with PR #1 still draft. No merge and no assertion that the build passes.
+
 ## Current verification status
 
 - **GitHub changes were successfully committed**, and a **draft PR was opened**.
