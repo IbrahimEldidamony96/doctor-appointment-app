@@ -1,53 +1,51 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
-import { verifyPaymobHmac } from "@/lib/paymob";
+import { verifyPaymobHmac, isSettledPayment } from "@/lib/paymob";
 
 export async function POST(req: NextRequest) {
-  const hmacParam = req.nextUrl.searchParams.get("hmac");
-  const body = await req.json();
-  const obj = body?.obj;
-
-  if (!obj || !verifyPaymobHmac(obj, hmacParam)) {
+  if (!req.headers.get("content-type")?.toLowerCase().startsWith("application/json")) {
+    return NextResponse.json({ error: "unsupported_media_type" }, { status: 415 });
+  }
+  let payload: unknown;
+  try { payload = await req.json(); } catch {
+    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
+  }
+  const obj = payload && typeof payload === "object" ? (payload as { obj?: unknown }).obj : null;
+  if (!verifyPaymobHmac(obj, req.nextUrl.searchParams.get("hmac"))) {
     return NextResponse.json({ error: "invalid_hmac" }, { status: 401 });
   }
-
-  // We sent our payments.id as special_reference when creating the
-  // intention — Paymob returns it as merchant_order_id in the callback.
-  // NOTE: verify this exact path (obj.order.merchant_order_id vs.
-  // obj.merchant_order_id) against a real test transaction in the
-  // Paymob dashboard before going live — the Intention API's callback
-  // shape for this field isn't 100% pinned down in the docs I could
-  // check.
-  const paymentId: string | undefined =
-    obj.order?.merchant_order_id ?? obj.merchant_order_id;
-
-  if (!paymentId) {
-    return NextResponse.json({ error: "missing_reference" }, { status: 400 });
+  // Every correlation field used below is part of the signed HMAC payload:
+  // order.id, amount_cents, currency and transaction id. Ignore merchant_order_id.
+  if (obj.currency !== "EGP" || !Number.isSafeInteger(obj.amount_cents) ||
+      obj.amount_cents <= 0 || String(obj.order.id).length > 64) {
+    return NextResponse.json({ error: "invalid_transaction" }, { status: 400 });
   }
-
-  const supabase = createServiceClient();
-  const success = Boolean(obj.success);
-
-  const { data: payment } = await supabase
-    .from("payments")
-    .update({
-      status: success ? "paid" : "failed",
-      transaction_id: String(obj.id),
-      paid_at: success ? new Date().toISOString() : null,
-    })
-    .eq("id", paymentId)
-    .select("appointment_id")
-    .maybeSingle();
-
-  // Auto-confirm the appointment once payment succeeds, but only if it's
-  // still pending — don't override a doctor's manual decision either way.
-  if (success && payment?.appointment_id) {
-    await supabase
-      .from("appointments")
-      .update({ status: "confirmed" })
-      .eq("id", payment.appointment_id)
-      .eq("status", "pending");
+  // Authorization-only, pending, refunded, voided and parent callbacks are
+  // not final payments. Do not downgrade paid states from these notifications.
+  if (obj.pending || obj.is_auth || obj.is_refunded || obj.is_voided ||
+      obj.has_parent_transaction || obj.error_occured) {
+    return NextResponse.json({ received: true, ignored: true });
   }
+  const succeeded = isSettledPayment(obj);
+  const failed = obj.success === false && !obj.pending;
+  if (!succeeded && !failed) return NextResponse.json({ received: true, ignored: true });
 
-  return NextResponse.json({ received: true });
+  const { data, error } = await createServiceClient().rpc("apply_paymob_transaction", {
+    p_order_id: String(obj.order.id),
+    p_transaction_id: String(obj.id),
+    p_amount_cents: obj.amount_cents,
+    p_success: succeeded,
+  });
+  if (error || !data || typeof data !== "object" || Array.isArray(data)) {
+    return NextResponse.json({ error: "temporary_unavailable" }, { status: 503 });
+  }
+  const result = data as { success?: boolean; reason?: string };
+  if (!result.success) {
+    // Unknown orders may be callbacks arriving before the intent was persisted.
+    if (result.reason === "unknown_order") {
+      return NextResponse.json({ error: "order_not_ready" }, { status: 503 });
+    }
+    return NextResponse.json({ error: "transaction_rejected" }, { status: 409 });
+  }
+  return NextResponse.json({ received: true }, { headers: { "Cache-Control": "no-store" } });
 }
