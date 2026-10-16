@@ -1,4 +1,5 @@
 import { getClinicActor } from "@/lib/auth/clinic-actor";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getClinicDateTime } from "@/lib/clinic-time";
@@ -30,7 +31,7 @@ export default async function DoctorAppointmentsPage() {
 
   return (
     <div className="space-y-7">
-      <h1 className="page-title">كل المواعيد</h1>
+      <div className="flex flex-wrap items-center justify-between gap-4"><h1 className="page-title">كل المواعيد</h1><Link href="/dashboard/appointments/new" className="rounded-xl bg-teal-700 px-5 py-3 text-sm font-bold text-white hover:bg-teal-800">+ حجز يدوي</Link></div>
 
       {(!appointments || appointments.length === 0) && (
         <p className="surface p-8 text-sm text-muted-foreground">مفيش مواعيد قادمة</p>
