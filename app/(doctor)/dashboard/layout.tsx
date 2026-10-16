@@ -1,5 +1,31 @@
 import { UserButton } from "@clerk/nextjs";
+import { redirect } from "next/navigation";
+import { auth } from "@clerk/nextjs/server";
+import { getClinicActor } from "@/lib/auth/clinic-actor";
 import { DashboardLogo, DashboardNav, DashboardViewSite } from "@/components/doctor/dashboard-nav";
-export default function DoctorDashboardLayout({ children }: { children: React.ReactNode }) {
-  return <div className="min-h-screen bg-[#f5f9fa]"><header className="sticky top-0 z-40 border-b bg-white/95 backdrop-blur-xl"><div className="container-app flex h-19 items-center justify-between gap-3"><DashboardLogo/><div className="flex items-center gap-4"><span className="hidden text-xs font-bold text-slate-500 sm:block">لوحة إدارة العيادة</span><DashboardViewSite/><UserButton/></div></div></header><div className="container-app grid gap-7 pb-16 pt-6 lg:grid-cols-[245px_minmax(0,1fr)]"><aside className="lg:sticky lg:top-25 lg:self-start"><div className="surface-sm p-3 lg:p-4"><p className="hidden px-4 pb-3 text-xs font-bold text-muted-foreground lg:block">القائمة الرئيسية</p><DashboardNav/></div></aside><main className="min-w-0">{children}</main></div></div>;
+
+export default async function DoctorDashboardLayout({ children }: { children: React.ReactNode }) {
+  const actor = await getClinicActor();
+  if (!actor) {
+    const { userId } = await auth();
+    redirect(userId ? "/doctor-access-denied" : "/sign-in");
+  }
+  return <div className="min-h-screen bg-[#f5f9fa]">
+    <header className="sticky top-0 z-40 border-b bg-white/95 backdrop-blur-xl">
+      <div className="container-app flex h-19 items-center justify-between gap-3">
+        <DashboardLogo/>
+        <div className="flex items-center gap-4">
+          <span className="hidden text-xs font-bold text-slate-500 sm:block">{actor.role === "doctor" ? "لوحة إدارة العيادة" : "مكتب الاستقبال"}</span>
+          <DashboardViewSite/><UserButton/>
+        </div>
+      </div>
+    </header>
+    <div className="container-app grid gap-7 pb-16 pt-6 lg:grid-cols-[245px_minmax(0,1fr)]">
+      <aside className="lg:sticky lg:top-25 lg:self-start"><div className="surface-sm p-3 lg:p-4">
+        <p className="hidden px-4 pb-3 text-xs font-bold text-muted-foreground lg:block">القائمة الرئيسية</p>
+        <DashboardNav role={actor.role}/>
+      </div></aside>
+      <main className="min-w-0">{children}</main>
+    </div>
+  </div>;
 }

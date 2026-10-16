@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { auth } from "@clerk/nextjs/server";
-import { isAuthorizedDoctor } from "@/lib/auth/doctor-access";
+import { getClinicActor } from "@/lib/auth/clinic-actor";
 import { redirect } from "next/navigation";
 import { CalendarDays, Clock3, ArrowUpLeft, ClipboardList, CalendarPlus2 } from "lucide-react";
 import { createServiceClient } from "@/lib/supabase/server";
@@ -8,9 +7,8 @@ function todayDateString() { const parts = new Intl.DateTimeFormat("en-GB", { ti
   const read = (type: string) => parts.find(p => p.type === type)?.value ?? "";
   return `${read("year")}-${read("month")}-${read("day")}`; }
 export default async function DoctorDashboardPage() {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
-  if (!isAuthorizedDoctor(userId)) redirect("/doctor-access-denied");
+  const actor = await getClinicActor();
+  if (!actor) redirect("/doctor-access-denied");
   const today = todayDateString();
   const { data: appointments } = await createServiceClient().from("appointments").select("id, start_time, end_time, status, reason_for_visit, patients(name, phone)").eq("appointment_date", today).in("status", ["pending", "confirmed"]).order("start_time", { ascending: true });
   const pending = appointments?.filter(a => a.status === "pending").length ?? 0;

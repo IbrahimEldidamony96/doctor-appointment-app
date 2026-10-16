@@ -34,9 +34,21 @@ type Settings = {
   default_slot_minutes: number; updated_at: string; consultation_price: number | null;
   doctor_notification_phone: string | null;
 };
+type StaffAccount = {
+  clerk_user_id: string; display_name: string; role: "secretary"; is_active: boolean;
+  created_by_clerk_user_id: string; updated_by_clerk_user_id: string;
+  created_at: string; updated_at: string;
+};
+type StaffAuditLog = {
+  id: number; actor_clerk_user_id: string; target_clerk_user_id: string;
+  action: "staff_added" | "staff_enabled" | "staff_disabled" | "staff_updated";
+  created_at: string;
+};
 export type Database = {
   clinic: {
     Tables: {
+      staff_accounts: Table<StaffAccount, "clerk_user_id" | "display_name" | "created_by_clerk_user_id" | "updated_by_clerk_user_id">;
+      staff_audit_log: Table<StaffAuditLog, "actor_clerk_user_id" | "target_clerk_user_id" | "action">;
       patients: Table<Patient, "phone">;
       availability: Table<{ id: string; day_of_week: number; start_time: string; end_time: string; slot_duration_minutes: number; is_active: boolean; created_at: string }, "day_of_week" | "start_time" | "end_time">;
       blocked_dates: Table<{ id: string; date: string; is_full_day: boolean; start_time: string | null; end_time: string | null; reason: string | null; created_at: string }, "date">;

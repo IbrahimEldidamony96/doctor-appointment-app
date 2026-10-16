@@ -7,7 +7,7 @@ import { updateAppointmentStatus } from "@/actions/doctor-appointments";
 type Status = "pending" | "confirmed" | "cancelled" | "completed" | "no_show";
 type NextStatus = "confirmed" | "cancelled" | "completed" | "no_show";
 
-export function AppointmentActions({ appointmentId, status }: { appointmentId: string; status: Status }) {
+export function AppointmentActions({ appointmentId, status, canMarkVisit = true }: { appointmentId: string; status: Status; canMarkVisit?: boolean }) {
   const [isPending, startTransition] = useTransition();
   const [current, setCurrent] = useState<Status>(status);
   const [error, setError] = useState<string | null>(null);
@@ -36,8 +36,8 @@ export function AppointmentActions({ appointmentId, status }: { appointmentId: s
         <Button size="sm" variant="outline" disabled={isPending} onClick={() => change("cancelled")}>إلغاء</Button>
       </>}
       {current === "confirmed" && <>
-        <Button size="sm" disabled={isPending} onClick={() => change("completed")}>تمت الزيارة</Button>
-        <Button size="sm" variant="outline" disabled={isPending} onClick={() => change("no_show")}>لم يحضر</Button>
+        {canMarkVisit && <Button size="sm" disabled={isPending} onClick={() => change("completed")}>تمت الزيارة</Button>}
+        {canMarkVisit && <Button size="sm" variant="outline" disabled={isPending} onClick={() => change("no_show")}>لم يحضر</Button>}
         <Button size="sm" variant="ghost" disabled={isPending} onClick={() => change("cancelled")}>إلغاء</Button>
       </>}
     </div>
