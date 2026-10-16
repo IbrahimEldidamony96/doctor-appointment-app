@@ -16,7 +16,8 @@ export async function POST(req: NextRequest) {
   }
   // Every correlation field used below is part of the signed HMAC payload:
   // order.id, amount_cents, currency and transaction id. Ignore merchant_order_id.
-  if (obj.currency !== "EGP" || !Number.isSafeInteger(obj.amount_cents) ||
+  if (obj.currency !== "EGP" || obj.integration_id !== Number(process.env.PAYMOB_INTEGRATION_ID) ||
+      !Number.isSafeInteger(obj.amount_cents) ||
       obj.amount_cents <= 0 || String(obj.order.id).length > 64) {
     return NextResponse.json({ error: "invalid_transaction" }, { status: 400 });
   }
