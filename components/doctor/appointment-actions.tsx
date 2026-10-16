@@ -1,68 +1,45 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { updateAppointmentStatus } from "@/actions/doctor-appointments";
 
 type Status = "pending" | "confirmed" | "cancelled" | "completed" | "no_show";
+type NextStatus = "confirmed" | "cancelled" | "completed" | "no_show";
 
-type Props = {
-  appointmentId: string;
-  status: Status;
-};
-
-export function AppointmentActions({ appointmentId, status }: Props) {
+export function AppointmentActions({ appointmentId, status }: { appointmentId: string; status: Status }) {
   const [isPending, startTransition] = useTransition();
+  const [current, setCurrent] = useState<Status>(status);
+  const [error, setError] = useState<string | null>(null);
 
-  function updateStatus(newStatus: "confirmed" | "cancelled" | "completed" | "no_show") {
-    startTransition(() => {
-      updateAppointmentStatus(appointmentId, newStatus);
+  function change(next: NextStatus) {
+    setError(null);
+    startTransition(async () => {
+      try {
+        const result = await updateAppointmentStatus(appointmentId, next);
+        if (result.success) {
+          setCurrent(next);
+          return;
+        }
+        setError(result.error === "invalid_transition"
+          ? "حالة الموعد اتغيرت أو لسه ما بدأش. حدّث الصفحة وحاول تاني."
+          : result.error === "unauthenticated" ? "انتهت صلاحية دخول الطبيب." : "تعذر تحديث الموعد.");
+      } catch { setError("تعذر الاتصال بالخادم."); }
     });
   }
 
-  if (status === "pending") {
-    return (
-      <div className="flex gap-2">
-        <Button size="sm" disabled={isPending} onClick={() => updateStatus("confirmed")}>
-          تأكيد
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={isPending}
-          onClick={() => updateStatus("cancelled")}
-        >
-          إلغاء
-        </Button>
-      </div>
-    );
-  }
-
-  if (status === "confirmed") {
-    return (
-      <div className="flex gap-2">
-        <Button size="sm" disabled={isPending} onClick={() => updateStatus("completed")}>
-          تمت الزيارة
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={isPending}
-          onClick={() => updateStatus("no_show")}
-        >
-          لم يحضر
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={isPending}
-          onClick={() => updateStatus("cancelled")}
-        >
-          إلغاء
-        </Button>
-      </div>
-    );
-  }
-
-  return null; // cancelled / completed / no_show — nothing left to do
+  return <div className="space-y-2">
+    {error && <p className="text-sm text-red-700" role="alert">{error}</p>}
+    <div className="flex flex-wrap gap-2">
+      {current === "pending" && <>
+        <Button size="sm" disabled={isPending} onClick={() => change("confirmed")}>تأكيد</Button>
+        <Button size="sm" variant="outline" disabled={isPending} onClick={() => change("cancelled")}>إلغاء</Button>
+      </>}
+      {current === "confirmed" && <>
+        <Button size="sm" disabled={isPending} onClick={() => change("completed")}>تمت الزيارة</Button>
+        <Button size="sm" variant="outline" disabled={isPending} onClick={() => change("no_show")}>لم يحضر</Button>
+        <Button size="sm" variant="ghost" disabled={isPending} onClick={() => change("cancelled")}>إلغاء</Button>
+      </>}
+    </div>
+  </div>;
 }
