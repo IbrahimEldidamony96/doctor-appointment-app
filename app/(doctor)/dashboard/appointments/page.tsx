@@ -1,5 +1,4 @@
-import { auth } from "@clerk/nextjs/server";
-import { isAuthorizedDoctor } from "@/lib/auth/doctor-access";
+import { getClinicActor } from "@/lib/auth/clinic-actor";
 import { redirect } from "next/navigation";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getClinicDateTime } from "@/lib/clinic-time";
@@ -14,9 +13,8 @@ const statusLabels: Record<string, string> = {
 };
 
 export default async function DoctorAppointmentsPage() {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
-  if (!isAuthorizedDoctor(userId)) redirect("/doctor-access-denied");
+  const actor = await getClinicActor();
+  if (!actor) redirect("/doctor-access-denied");
 
   const supabase = createServiceClient();
   const todayStr = getClinicDateTime().date;
@@ -58,7 +56,7 @@ export default async function DoctorAppointmentsPage() {
               </p>
             )}
             <div className="mt-2">
-              <AppointmentActions appointmentId={appt.id} status={appt.status} />
+              <AppointmentActions appointmentId={appt.id} status={appt.status} canMarkVisit={actor.role === "doctor"} />
             </div>
           </li>
         ))}
