@@ -77,11 +77,12 @@ export async function createPaymentIntention(params: IntentionParams): Promise<I
   const response: unknown = await res.json();
   if (!response || typeof response !== "object") throw new Error("Invalid Paymob response");
   const r = response as Record<string, unknown>;
-  if (typeof r.id !== "string" || !Number.isSafeInteger(r.intention_order_id) ||
+  if (typeof r.id !== "string" || typeof r.intention_order_id !== "number" ||
+      !Number.isSafeInteger(r.intention_order_id) ||
       typeof r.client_secret !== "string" || !r.client_secret) {
     throw new Error("Incomplete Paymob intention response");
   }
-  return r as IntentionResponse;
+  return { id: r.id, intention_order_id: r.intention_order_id, client_secret: r.client_secret };
 }
 
 export function getCheckoutUrl(clientSecret: string): string {
@@ -104,7 +105,7 @@ export function verifyPaymobHmac(obj: unknown, signature: string | null): obj is
       !obj || typeof obj !== "object") return false;
   const o = obj as Record<string, unknown>;
   if (!BOOL_FIELDS.every((key) => typeof o[key] === "boolean") ||
-      !Number.isSafeInteger(o.amount_cents) || typeof o.created_at !== "string" ||
+      typeof o.amount_cents !== "number" || !Number.isSafeInteger(o.amount_cents) || typeof o.created_at !== "string" ||
       typeof o.currency !== "string" || typeof o.integration_id !== "number" ||
       !o.order || typeof o.order !== "object" ||
       !["string", "number"].includes(typeof (o.order as Record<string, unknown>).id) ||

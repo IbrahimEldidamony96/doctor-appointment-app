@@ -35,7 +35,8 @@ export async function verifyPatientJwt(token: string): Promise<PatientJwtPayload
       requiredClaims: ["exp", "iat", "iss", "aud"],
     });
     const now = Math.floor(Date.now() / 1000);
-    if (!Number.isInteger(payload.iat) || !Number.isInteger(payload.exp)
+    if (typeof payload.iat !== "number" || typeof payload.exp !== "number"
+      || !Number.isInteger(payload.iat) || !Number.isInteger(payload.exp)
       || payload.iat > now + 5 || payload.exp <= payload.iat
       || payload.exp > payload.iat + PATIENT_SESSION_MAX_AGE_SECONDS) return null;
     if (!validIdentity(payload)) return null;

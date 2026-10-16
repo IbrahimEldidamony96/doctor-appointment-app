@@ -4,10 +4,12 @@ import { Resend } from "resend";
 const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM_EMAIL = process.env.RESEND_FROM_EMAIL ?? "clinic@example.com";
 
+const HTML_ENTITIES: Record<string, string> = {
+  "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+};
+
 export function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (char) => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-  })[char] ?? char);
+  return value.replace(/[&<>"']/g, (char) => HTML_ENTITIES[char] ?? char);
 }
 
 async function sendNotification(to: string | null, patientName: string | null, subject: string, message: string) {
