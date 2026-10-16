@@ -4,51 +4,34 @@ import { Resend } from "resend";
 const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM_EMAIL = process.env.RESEND_FROM_EMAIL ?? "clinic@example.com";
 
-// Email is optional for patients (they sign up with phone only), so
-// every function here silently no-ops if there's no address on file
-// rather than failing the whole booking/status-update flow.
-
-export async function sendBookingReceivedEmail(
-  to: string | null,
-  patientName: string | null,
-  date: string,
-  time: string
-) {
-  if (!to) return;
-  await resend.emails.send({
-    from: FROM_EMAIL,
-    to,
-    subject: "تم استلام طلب الحجز",
-    html: `<p>مرحبًا ${patientName ?? ""}،</p><p>استلمنا طلب حجزك يوم ${date} الساعة ${time}. هنبعتلك تأكيد لما الدكتور يراجعه.</p>`,
-  });
+export function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  })[char] ?? char);
 }
 
-export async function sendAppointmentConfirmedEmail(
-  to: string | null,
-  patientName: string | null,
-  date: string,
-  time: string
-) {
-  if (!to) return;
-  await resend.emails.send({
-    from: FROM_EMAIL,
-    to,
-    subject: "تم تأكيد موعدك",
-    html: `<p>مرحبًا ${patientName ?? ""}،</p><p>تم تأكيد موعدك يوم ${date} الساعة ${time}.</p>`,
+async function sendNotification(to: string | null, patientName: string | null, subject: string, message: string) {
+  if (!to || !process.env.RESEND_API_KEY || !process.env.RESEND_FROM_EMAIL) return;
+  const name = escapeHtml(patientName ?? "");
+  const safeMessage = escapeHtml(message);
+  const result = await resend.emails.send({
+    from: FROM_EMAIL, to, subject,
+    html: `<p>مرحبًا ${name}،</p><p>${safeMessage}</p>`,
   });
+  if (result.error) throw new Error("Email provider rejected message");
 }
 
-export async function sendAppointmentCancelledEmail(
-  to: string | null,
-  patientName: string | null,
-  date: string,
-  time: string
-) {
-  if (!to) return;
-  await resend.emails.send({
-    from: FROM_EMAIL,
-    to,
-    subject: "تم إلغاء الموعد",
-    html: `<p>مرحبًا ${patientName ?? ""}،</p><p>تم إلغاء موعدك يوم ${date} الساعة ${time}.</p>`,
-  });
+export async function sendBookingReceivedEmail(to: string | null, name: string | null, date: string, time: string) {
+  return sendNotification(to, name, "تم استلام طلب الحجز",
+    `استلمنا طلب حجزك يوم ${date} الساعة ${time}. هنبعتلك تأكيد لما الدكتور يراجعه.`);
+}
+
+export async function sendAppointmentConfirmedEmail(to: string | null, name: string | null, date: string, time: string) {
+  return sendNotification(to, name, "تم تأكيد موعدك",
+    `تم تأكيد موعدك يوم ${date} الساعة ${time}.`);
+}
+
+export async function sendAppointmentCancelledEmail(to: string | null, name: string | null, date: string, time: string) {
+  return sendNotification(to, name, "تم إلغاء الموعد",
+    `تم إلغاء موعدك يوم ${date} الساعة ${time}.`);
 }

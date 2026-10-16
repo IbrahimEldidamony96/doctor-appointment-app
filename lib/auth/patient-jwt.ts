@@ -1,45 +1,44 @@
 import "server-only";
 import { SignJWT, jwtVerify } from "jose";
+import { PATIENT_ID_PATTERN, PHONE_PATTERN, PATIENT_SESSION_MAX_AGE_SECONDS } from "./constants";
+import { getAuthSecret } from "./secrets";
 
-const JWT_ALG = "HS256";
-const SESSION_DAYS = 30;
+const ISSUER = "clinic-patient-auth";
+const AUDIENCE = "clinic-patient";
 
-function getSecretKey() {
-  const secret = process.env.PATIENT_JWT_SECRET;
-  if (!secret) throw new Error("Missing PATIENT_JWT_SECRET");
-  return new TextEncoder().encode(secret);
+export type PatientJwtPayload = { patientId: string; phone: string };
+
+function validIdentity(value: unknown): value is PatientJwtPayload {
+  if (!value || typeof value !== "object") return false;
+  const payload = value as Record<string, unknown>;
+  return typeof payload.patientId === "string" && PATIENT_ID_PATTERN.test(payload.patientId)
+    && typeof payload.phone === "string" && PHONE_PATTERN.test(payload.phone);
 }
 
-export type PatientJwtPayload = {
-  patientId: string;
-  phone: string;
-};
-
-/**
- * Uses jose (not jsonwebtoken) because it runs on both the Node
- * and Edge runtimes — middleware.ts runs on Edge, and it'll need
- * to call verifyPatientJwt() to protect patient routes.
- */
-export async function signPatientJwt(payload: PatientJwtPayload) {
-  return new SignJWT({ ...payload })
-    .setProtectedHeader({ alg: JWT_ALG })
+export async function signPatientJwt(payload: PatientJwtPayload): Promise<string> {
+  if (!validIdentity(payload)) throw new Error("Invalid patient identity");
+  return new SignJWT({ patientId: payload.patientId, phone: payload.phone })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuer(ISSUER)
+    .setAudience(AUDIENCE)
     .setIssuedAt()
-    .setExpirationTime(`${SESSION_DAYS}d`)
-    .sign(getSecretKey());
+    .setExpirationTime(Math.floor(Date.now() / 1000) + PATIENT_SESSION_MAX_AGE_SECONDS)
+    .sign(getAuthSecret("PATIENT_JWT_SECRET"));
 }
 
-export async function verifyPatientJwt(
-  token: string
-): Promise<PatientJwtPayload | null> {
+export async function verifyPatientJwt(token: string): Promise<PatientJwtPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, getSecretKey(), {
-      algorithms: [JWT_ALG],
+    const { payload } = await jwtVerify(token, getAuthSecret("PATIENT_JWT_SECRET"), {
+      algorithms: ["HS256"],
+      issuer: ISSUER,
+      audience: AUDIENCE,
+      requiredClaims: ["exp", "iat", "iss", "aud"],
     });
-
-    if (typeof payload.patientId !== "string" || typeof payload.phone !== "string") {
-      return null;
-    }
-
+    const now = Math.floor(Date.now() / 1000);
+    if (!Number.isInteger(payload.iat) || !Number.isInteger(payload.exp)
+      || payload.iat > now + 5 || payload.exp <= payload.iat
+      || payload.exp > payload.iat + PATIENT_SESSION_MAX_AGE_SECONDS) return null;
+    if (!validIdentity(payload)) return null;
     return { patientId: payload.patientId, phone: payload.phone };
   } catch {
     return null;

@@ -1,7 +1,10 @@
-/** Server-side allowlist: a Clerk login alone must never grant clinic admin access.
- * Set DOCTOR_CLERK_USER_IDS to comma-separated Clerk user IDs in production. */
-export function isAuthorizedDoctor(userId: string | null | undefined): boolean {
+/** Only explicitly allowlisted Clerk user IDs have doctor privileges. */
+export function isDoctorUser(
+  userId: string | null | undefined,
+  allowlist = process.env.DOCTOR_CLERK_USER_IDS ?? "",
+): boolean {
   if (!userId) return false;
-  const allowed = (process.env.DOCTOR_CLERK_USER_IDS || "").split(",").map(id => id.trim()).filter(Boolean);
-  return allowed.includes(userId);
+  return allowlist.split(",").map((id) => id.trim()).filter(Boolean).includes(userId);
 }
+
+export const isAuthorizedDoctor = isDoctorUser;
