@@ -4,181 +4,98 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getPatientSession } from "@/lib/auth/get-patient-session";
-import { sendWhatsAppMessage } from "@/lib/whatsapp";
+import { sendDoctorNotification } from "@/lib/whatsapp";
 import { sendBookingReceivedEmail } from "@/lib/resend";
+import { isISODate, isClockTime } from "@/lib/clinic-time";
 
-const createAppointmentSchema = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  startTime: z.string().regex(/^\d{2}:\d{2}$/),
-  endTime: z.string().regex(/^\d{2}:\d{2}$/),
-  reasonForVisit: z.string().max(500).optional(),
-  // Collected here if this is the patient's first booking — see
-  // 003_patients_name_nullable.sql for why `name` isn't required at signup.
-  patientName: z.string().min(2).max(100).optional(),
-  patientEmail: z.string().email().optional(),
+const schema = z.object({
+  date: z.string().refine(isISODate),
+  startTime: z.string().refine(isClockTime),
+  endTime: z.string().refine(isClockTime),
+  reasonForVisit: z.string().trim().max(500).optional(),
+  patientName: z.string().trim().min(2).max(100),
+  patientEmail: z.union([z.email(), z.literal("")]).optional(),
 });
-
-export type CreateAppointmentInput = z.infer<typeof createAppointmentSchema>;
-
+export type CreateAppointmentInput = z.infer<typeof schema>;
 export type CreateAppointmentResult =
   | { success: true; appointmentId: string }
-  | {
-      success: false;
-      error: "unauthenticated" | "invalid_input" | "slot_taken" | "unknown";
-    };
+  | { success: false; error: "unauthenticated" | "invalid_input" | "slot_taken" | "unknown" };
 
-export async function createAppointment(
-  input: CreateAppointmentInput
-): Promise<CreateAppointmentResult> {
+export async function createAppointment(input: CreateAppointmentInput): Promise<CreateAppointmentResult> {
   const session = await getPatientSession();
-  if (!session) {
-    return { success: false, error: "unauthenticated" };
-  }
-
-  const parsed = createAppointmentSchema.safeParse(input);
-  if (!parsed.success) {
+  if (!session) return { success: false, error: "unauthenticated" };
+  const parsed = schema.safeParse(input);
+  if (!parsed.success || parsed.data.startTime >= parsed.data.endTime) {
     return { success: false, error: "invalid_input" };
   }
-
-  const { date, startTime, endTime, reasonForVisit, patientName, patientEmail } =
-    parsed.data;
+  const { date, startTime, endTime, reasonForVisit, patientName, patientEmail } = parsed.data;
   const supabase = createServiceClient();
-
-  const { data, error } = await supabase
-    .from("appointments")
-    .insert({
-      patient_id: session.patientId,
-      appointment_date: date,
-      start_time: `${startTime}:00`,
-      end_time: `${endTime}:00`,
-      reason_for_visit: reasonForVisit,
-      status: "pending",
-    })
-    .select("id")
-    .single();
-
-  if (error) {
-    // 23505 = unique_violation — someone else took this slot first,
-    // caught by uq_appointments_active_slot from 001_init_clinic_schema.sql
-    if (error.code === "23505") {
-      return { success: false, error: "slot_taken" };
+  // One Postgres transaction: profile and appointment either commit together or neither commits.
+  // DB checks booking window, active schedule, blocked dates and overlapping intervals.
+  const { data: appointmentId, error } = await supabase.rpc("create_patient_appointment", {
+    p_patient_id: session.patientId,
+    p_date: date,
+    p_start_time: startTime,
+    p_end_time: endTime,
+    p_reason: reasonForVisit ?? null,
+    p_patient_name: patientName,
+    p_patient_email: patientEmail || null,
+  });
+  if (error || !appointmentId) {
+    if (error?.code === "23P01" || error?.code === "23505") return { success: false, error: "slot_taken" };
+    if (error?.code === "23514" || error?.code === "23503" || error?.code === "22007") {
+      return { success: false, error: "invalid_input" };
     }
     return { success: false, error: "unknown" };
   }
-
-  if (patientName || patientEmail) {
-    await supabase
-      .from("patients")
-      .update({
-        ...(patientName && { name: patientName }),
-        ...(patientEmail && { email: patientEmail }),
-      })
-      .eq("id", session.patientId);
-  }
-
-  // Notifications — best-effort. A failed email/WhatsApp send shouldn't
-  // fail a booking that already succeeded in the database.
-  const { data: settings } = await supabase
-    .from("settings")
-    .select("doctor_notification_phone")
-    .maybeSingle();
-
+  const { data: settings } = await supabase.from("settings").select("doctor_notification_phone").maybeSingle();
   await Promise.allSettled([
-    sendBookingReceivedEmail(patientEmail ?? null, patientName ?? null, date, startTime),
+    sendBookingReceivedEmail(patientEmail || null, patientName, date, startTime),
     settings?.doctor_notification_phone
-      ? sendWhatsAppMessage(
-          settings.doctor_notification_phone,
-          `طلب حجز جديد: ${patientName ?? "مريض"} يوم ${date} الساعة ${startTime}`
-        )
+      ? sendDoctorNotification(settings.doctor_notification_phone, "new", patientName, date, startTime)
       : Promise.resolve(),
   ]);
-
-  revalidatePath("/my-appointments");
   revalidatePath("/book");
-
-  return { success: true, appointmentId: data.id };
+  revalidatePath("/my-appointments");
+  revalidatePath("/dashboard/appointments");
+  return { success: true, appointmentId };
 }
 
-const cancelAppointmentSchema = z.object({
-  appointmentId: z.string().uuid(),
-});
+const cancelSchema = z.object({ appointmentId: z.string().uuid() });
+export type CancelAppointmentResult = { success: true } |
+  { success: false; error: "unauthenticated" | "invalid_input" | "not_your_appointment" |
+      "too_late_to_cancel" | "not_cancellable" | "unknown" };
 
-export type CancelAppointmentResult =
-  | { success: true }
-  | {
-      success: false;
-      error:
-        | "unauthenticated"
-        | "invalid_input"
-        | "not_your_appointment"
-        | "too_late_to_cancel"
-        | "not_cancellable"
-        | "unknown";
-    };
-
-/**
- * Enforces settings.cancellation_notice_hours — the gap flagged back
- * when we built the settings page (it was stored but not checked
- * anywhere until now).
- */
-export async function cancelAppointment(
-  input: z.infer<typeof cancelAppointmentSchema>
-): Promise<CancelAppointmentResult> {
+export async function cancelAppointment(input: z.infer<typeof cancelSchema>): Promise<CancelAppointmentResult> {
   const session = await getPatientSession();
   if (!session) return { success: false, error: "unauthenticated" };
-
-  const parsed = cancelAppointmentSchema.safeParse(input);
+  const parsed = cancelSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: "invalid_input" };
-
   const supabase = createServiceClient();
-
-  const [{ data: appointment }, { data: settings }] = await Promise.all([
-    supabase
-      .from("appointments")
-      .select("id, patient_id, status, appointment_date, start_time, patients(name)")
-      .eq("id", parsed.data.appointmentId)
-      .maybeSingle(),
-    supabase
-      .from("settings")
-      .select("cancellation_notice_hours, doctor_notification_phone")
-      .maybeSingle(),
-  ]);
-
-  if (!appointment || appointment.patient_id !== session.patientId) {
-    return { success: false, error: "not_your_appointment" };
-  }
-
-  if (!["pending", "confirmed"].includes(appointment.status)) {
-    return { success: false, error: "not_cancellable" };
-  }
-
-  const noticeHours = settings?.cancellation_notice_hours ?? 24;
-  const appointmentStart = new Date(
-    `${appointment.appointment_date}T${appointment.start_time}`
-  );
-  const hoursUntil = (appointmentStart.getTime() - Date.now()) / (1000 * 60 * 60);
-
-  if (hoursUntil < noticeHours) {
-    return { success: false, error: "too_late_to_cancel" };
-  }
-
-  const { error } = await supabase
-    .from("appointments")
-    .update({ status: "cancelled" })
-    .eq("id", appointment.id);
-
+  // Row lock and notice period are evaluated by the DB against Cairo time.
+  const { data, error } = await supabase.rpc("cancel_patient_appointment", {
+    p_appointment_id: parsed.data.appointmentId,
+    p_patient_id: session.patientId,
+  });
   if (error) return { success: false, error: "unknown" };
-
-  if (settings?.doctor_notification_phone) {
-    await sendWhatsAppMessage(
-      settings.doctor_notification_phone,
-      `المريض ${appointment.patients?.name ?? ""} ألغى موعد يوم ${appointment.appointment_date} الساعة ${appointment.start_time.slice(0, 5)}`
-    ).catch(() => {}); // best-effort — don't fail the cancellation if this fails
+  if (data !== "cancelled") {
+    if (data === "not_your_appointment" || data === "not_cancellable" || data === "too_late_to_cancel") {
+      return { success: false, error: data };
+    }
+    return { success: false, error: "unknown" };
   }
-
+  const [{ data: appointment }, { data: settings }] = await Promise.all([
+    supabase.from("appointments").select("appointment_date,start_time,patients(name)")
+      .eq("id", parsed.data.appointmentId).eq("patient_id", session.patientId).single(),
+    supabase.from("settings").select("doctor_notification_phone").maybeSingle(),
+  ]);
+  if (settings?.doctor_notification_phone && appointment) {
+    await sendDoctorNotification(settings.doctor_notification_phone, "cancel",
+      appointment.patients?.name ?? "Patient", appointment.appointment_date,
+      appointment.start_time.slice(0, 5)).catch(() => {});
+  }
   revalidatePath("/my-appointments");
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/appointments");
-
   return { success: true };
 }

@@ -1,131 +1,43 @@
 import "server-only";
 import { createServiceClient } from "@/lib/supabase/server";
+import { generateAvailableSlots, type Slot } from "@/lib/availability-slots";
+import { addCalendarDays, getClinicDateTime } from "@/lib/clinic-time";
 
-export type Slot = {
-  date: string; // YYYY-MM-DD
-  startTime: string; // HH:mm
-  endTime: string; // HH:mm
-};
+export type { Slot } from "@/lib/availability-slots";
 
-function addMinutes(time: string, minutes: number): string {
-  const [h, m] = time.split(":").map(Number);
-  const total = h * 60 + m + minutes;
-  const hh = Math.floor(total / 60) % 24;
-  const mm = total % 60;
-  return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
-}
-
-function toDateString(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
-
-/**
- * Combines the weekly `availability` template, `blocked_dates`
- * exceptions, and already-booked `appointments` to produce the list
- * of open slots — nothing is precomputed or stored, so there's
- * nothing to fall out of sync.
- */
-export async function getAvailableSlots(
-  fromDate: Date,
-  days?: number
-): Promise<Slot[]> {
+/** Availability is display-only; PostgreSQL atomically validates every booking. */
+export async function getAvailableSlots(fromDate = new Date(), requestedDays?: number): Promise<Slot[]> {
+  if (Number.isNaN(fromDate.getTime())) return [];
   const supabase = createServiceClient();
-
-  let windowDays = days;
-  if (!windowDays) {
-    const { data: settings } = await supabase
-      .from("settings")
-      .select("booking_window_days")
-      .maybeSingle();
-    windowDays = settings?.booking_window_days ?? 30;
-  }
-
-  const toDate = new Date(fromDate);
-  toDate.setDate(toDate.getDate() + windowDays);
-
-  const [{ data: availability }, { data: blockedDates }, { data: bookedAppointments }] =
-    await Promise.all([
-      supabase.from("availability").select("*").eq("is_active", true),
-      supabase
-        .from("blocked_dates")
-        .select("*")
-        .gte("date", toDateString(fromDate))
-        .lte("date", toDateString(toDate)),
-      supabase
-        .from("appointments")
-        .select("appointment_date, start_time")
-        .in("status", ["pending", "confirmed"])
-        .gte("appointment_date", toDateString(fromDate))
-        .lte("appointment_date", toDateString(toDate)),
-    ]);
-
-  const blockedByDate = new Map<string, NonNullable<typeof blockedDates>>();
-  for (const b of blockedDates ?? []) {
-    const list = blockedByDate.get(b.date) ?? [];
-    list.push(b);
-    blockedByDate.set(b.date, list);
-  }
-
-  const bookedSet = new Set(
-    (bookedAppointments ?? []).map(
-      (a) => `${a.appointment_date}|${a.start_time}`
-    )
-  );
-
-  const now = new Date();
-  const todayStr = toDateString(now);
-  const nowHHmm = `${String(now.getHours()).padStart(2, "0")}:${String(
-    now.getMinutes()
-  ).padStart(2, "0")}`;
-
-  const slots: Slot[] = [];
-
-  for (let i = 0; i < windowDays; i++) {
-    const date = new Date(fromDate);
-    date.setDate(date.getDate() + i);
-    const dateStr = toDateString(date);
-    const dayOfWeek = date.getDay(); // 0 = Sunday
-
-    const dayTemplates = (availability ?? []).filter(
-      (a) => a.day_of_week === dayOfWeek
-    );
-    const dayBlocks = blockedByDate.get(dateStr) ?? [];
-
-    if (dayBlocks.some((b) => b.is_full_day)) continue; // whole day off
-
-    for (const template of dayTemplates) {
-      let cursor = template.start_time.slice(0, 5); // "HH:mm:ss" -> "HH:mm"
-      const end = template.end_time.slice(0, 5);
-
-      while (cursor < end) {
-        const slotEnd = addMinutes(cursor, template.slot_duration_minutes);
-        if (slotEnd > end) break;
-
-        // skip slots already in the past today
-        if (dateStr === todayStr && cursor <= nowHHmm) {
-          cursor = slotEnd;
-          continue;
-        }
-
-        const isBlocked = dayBlocks.some(
-          (b) =>
-            !b.is_full_day &&
-            b.start_time &&
-            b.end_time &&
-            cursor < b.end_time.slice(0, 5) &&
-            slotEnd > b.start_time.slice(0, 5)
-        );
-
-        const isBooked = bookedSet.has(`${dateStr}|${cursor}:00`);
-
-        if (!isBlocked && !isBooked) {
-          slots.push({ date: dateStr, startTime: cursor, endTime: slotEnd });
-        }
-
-        cursor = slotEnd;
-      }
-    }
-  }
-
-  return slots;
+  const { data: settings, error: settingsError } = await supabase.from("settings")
+    .select("booking_window_days").maybeSingle();
+  if (settingsError) throw new Error("Unable to load booking settings");
+  const windowDays = Math.min(180, Math.max(1, settings?.booking_window_days ?? 30));
+  const nowInstant = new Date();
+  const today = getClinicDateTime(nowInstant);
+  const requestedStart = getClinicDateTime(fromDate).date;
+  const from = requestedStart > today.date ? requestedStart : today.date;
+  const maxDateExclusive = addCalendarDays(today.date, windowDays);
+  if (from >= maxDateExclusive) return [];
+  const remainingDays = Math.max(0, Math.round(
+    (Date.parse(maxDateExclusive + "T00:00:00Z") - Date.parse(from + "T00:00:00Z")) / 86400000,
+  ));
+  const days = Math.min(remainingDays,
+    requestedDays === undefined ? remainingDays : Math.max(1, Math.min(180, Math.floor(requestedDays))));
+  if (!days) return [];
+  const to = addCalendarDays(from, days - 1);
+  const [{ data: available, error: aerr }, { data: blocks, error: berr }, { data: booked, error: cerr }] = await Promise.all([
+    supabase.from("availability").select("day_of_week,start_time,end_time,slot_duration_minutes").eq("is_active", true),
+    supabase.from("blocked_dates").select("date,is_full_day,start_time,end_time").gte("date", from).lte("date", to),
+    supabase.from("appointments").select("appointment_date,start_time,end_time")
+      .in("status", ["pending", "confirmed"]).is("deleted_at", null)
+      .gte("appointment_date", from).lte("appointment_date", to),
+  ]);
+  if (aerr || berr || cerr) throw new Error("Unable to load booking availability");
+  return generateAvailableSlots({
+    fromDate: from, days, now: today, nowInstant,
+    availability: available ?? [],
+    blockedDates: blocks ?? [],
+    appointments: booked ?? [],
+  });
 }

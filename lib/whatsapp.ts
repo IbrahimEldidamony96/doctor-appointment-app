@@ -23,7 +23,7 @@ async function sendTemplate(phone: string, name: string | undefined, values: str
     parameters: values.map((text) => ({ type: "text", text })),
   });
   if (otpCode) components.push({
-    type: "button", sub_type: "copy_code", index: 0,
+    type: "button", sub_type: "url", index: 0,
     parameters: [{ type: "text", text: otpCode }],
   });
   const res = await fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${phoneId}/messages`, {

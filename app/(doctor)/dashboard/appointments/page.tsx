@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { isAuthorizedDoctor } from "@/lib/auth/doctor-access";
 import { redirect } from "next/navigation";
 import { createServiceClient } from "@/lib/supabase/server";
+import { getClinicDateTime } from "@/lib/clinic-time";
 import { AppointmentActions } from "@/components/doctor/appointment-actions";
 
 const statusLabels: Record<string, string> = {
@@ -18,7 +19,7 @@ export default async function DoctorAppointmentsPage() {
   if (!isAuthorizedDoctor(userId)) redirect("/doctor-access-denied");
 
   const supabase = createServiceClient();
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = getClinicDateTime().date;
 
   const { data: appointments } = await supabase
     .from("appointments")
