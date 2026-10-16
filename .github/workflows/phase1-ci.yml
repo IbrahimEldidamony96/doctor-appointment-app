@@ -1,0 +1,28 @@
+name: Phase 1 backend checks
+on:
+  push:
+    branches: [fix/phase-1-backend-integrity]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  backend:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install application
+        run: npm ci
+      - name: Install isolated test tooling
+        run: npm install --no-save --package-lock=false --ignore-scripts @electric-sql/pglite@0.5.10 tsx@4.23.15
+      - name: TypeScript
+        run: npx tsc --noEmit
+      - name: ESLint
+        run: npm run lint
+      - name: Database and security tests
+        run: node --conditions=react-server --import tsx --test tests/*.test.ts
