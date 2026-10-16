@@ -11,7 +11,7 @@ type StartResult = { success?: boolean; existing?: boolean; reason?: string; pay
 export type InitiatePaymentResult =
   | { success: true; checkoutUrl: string }
   | { success: false; error: "unauthenticated" | "invalid_input" | "not_your_appointment" |
-    "already_paid" | "no_price_configured" | "payment_in_progress" | "unknown" };
+    "already_paid" | "no_price_configured" | "payment_in_progress" | "not_payable" | "unknown" };
 
 export async function initiatePayment(input: z.infer<typeof schema>): Promise<InitiatePaymentResult> {
   const session = await getPatientSession();
@@ -31,7 +31,7 @@ export async function initiatePayment(input: z.infer<typeof schema>): Promise<In
   const started = data as StartResult;
   if (!started.success) {
     if (started.reason === "not_your_appointment" || started.reason === "already_paid" ||
-        started.reason === "no_price_configured") return { success: false, error: started.reason };
+        started.reason === "no_price_configured" || started.reason === "not_payable") return { success: false, error: started.reason };
     return { success: false, error: "unknown" };
   }
   const payment = started.payment;

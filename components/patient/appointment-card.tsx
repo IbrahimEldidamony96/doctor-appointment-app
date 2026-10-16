@@ -32,7 +32,7 @@ export function AppointmentCard({ appointment }: { appointment: Appointment }) {
       try {
         const result = await initiatePayment({ appointmentId: appointment.id });
         if (result.success) { window.location.assign(result.checkoutUrl); return; }
-        const messages: Record<string,string> = { already_paid: "تم دفع قيمة الكشف بالفعل.", payment_in_progress: "فيه محاولة دفع بتتجهز حاليًا. حاول تاني بعد قليل.", no_price_configured: "الدفع الإلكتروني غير متاح قبل تحديد سعر الكشف.", not_your_appointment: "غير مصرح بعرض هذا الموعد." };
+        const messages: Record<string,string> = { already_paid: "تم دفع قيمة الكشف بالفعل.", payment_in_progress: "عملية دفع جارية. انتظر قليلًا وحاول إعادة فتح صفحة الدفع.", not_payable: "هذا الموعد غير متاح للدفع حاليًا.", payment_in_progress: "فيه محاولة دفع بتتجهز حاليًا. حاول تاني بعد قليل.", no_price_configured: "الدفع الإلكتروني غير متاح قبل تحديد سعر الكشف.", not_your_appointment: "غير مصرح بعرض هذا الموعد." };
         setError(messages[result.error] ?? "تعذر بدء الدفع الآن.");
       } catch { setError("تعذر الاتصال بخدمة الدفع حاليًا."); }
     });
