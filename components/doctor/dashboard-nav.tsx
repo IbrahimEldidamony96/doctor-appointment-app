@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, CalendarDays, Clock3, MessageSquareText, Settings2, ChartColumnIncreasing, ArrowUpLeft, HeartPulse, Users, ContactRound } from "lucide-react";
+import { LayoutDashboard, CalendarDays, Clock3, MessageSquareText, Settings2, ChartColumnIncreasing, ArrowUpLeft, HeartPulse, Users, ContactRound, Activity } from "lucide-react";
 import type { ClinicRole, ClinicPermission } from "@/lib/auth/permissions";
 import { hasPermission } from "@/lib/auth/permissions";
 
@@ -15,6 +15,7 @@ const links: { href: string; label: string; icon: typeof LayoutDashboard; permis
   { href: "/dashboard/stats", label: "الإحصاءات", icon: ChartColumnIncreasing, permission: "stats:view" },
   { href: "/dashboard/settings", label: "الإعدادات", icon: Settings2, permission: "settings:manage" },
   { href: "/dashboard/staff", label: "السكرتارية", icon: Users, permission: "staff:manage" },
+  { href: "/dashboard/operations", label: "سجل العمليات", icon: Activity, permission: "operations:view" },
 ];
 export function DashboardNav({ role }: { role: ClinicRole }) {
   const pathname = usePathname();

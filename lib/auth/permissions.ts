@@ -17,7 +17,8 @@ export type ClinicPermission =
   | "reviews:manage"
   | "stats:view"
   | "settings:manage"
-  | "staff:manage";
+  | "staff:manage"
+  | "operations:view";
 
 const secretaryPermissions: ReadonlySet<ClinicPermission> = new Set([
   "dashboard:view", "appointments:view", "calendar:view", "patients:search", "patients:history", "appointments:create_manual", "appointments:reschedule", "appointments:confirm", "appointments:cancel",
