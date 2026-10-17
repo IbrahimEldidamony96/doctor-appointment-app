@@ -149,7 +149,7 @@ end $$;
 
 -- Claim is atomic and skips rows leased to another invocation. Reclaimed jobs
 -- reuse the same idempotency key and retain attempt counts.
-create function clinic.claim_notification_outbox(p_limit integer default 4)
+create function clinic.claim_notification_outbox(p_limit integer default 4,p_appointment_id uuid default null)
 returns table (
   id uuid,claim_token uuid,event_type text,destination_email text,
   payload jsonb,appointment_id uuid,attempts integer
@@ -164,6 +164,7 @@ begin
     where ((o.state in ('pending','retry') and o.next_attempt_at <= now())
        or (o.state = 'processing' and o.claimed_at < now() - interval '5 minutes'))
       and o.attempts < 5
+      and (p_appointment_id is null or o.appointment_id = p_appointment_id)
     order by o.next_attempt_at,o.created_at,o.id
     limit p_limit for update skip locked
   ), leased as (
@@ -209,7 +210,7 @@ revoke all on function clinic.capture_appointment_event()
   from public,anon,authenticated;
 revoke all on function clinic.update_staff_appointment_status(uuid,text,text)
   from public,anon,authenticated;
-revoke all on function clinic.claim_notification_outbox(integer)
+revoke all on function clinic.claim_notification_outbox(integer,uuid)
   from public,anon,authenticated;
 revoke all on function clinic.finish_notification_outbox(uuid,uuid,text,text,text)
   from public,anon,authenticated;
