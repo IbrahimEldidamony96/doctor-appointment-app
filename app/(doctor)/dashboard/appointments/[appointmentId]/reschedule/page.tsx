@@ -33,6 +33,6 @@ export default async function ReschedulePage({
       <h1 className="page-title">تغيير موعد الحجز</h1>
       <p className="page-desc">المريض: {data.patients?.name ?? "بدون اسم"} — <span dir="ltr">{data.patients?.phone}</span></p>
     </div>
-    <RescheduleForm appointment={data} slots={slots}/>
+    <RescheduleForm appointment={{ ...data, status: data.status }} slots={slots}/>
   </main>;
 }
