@@ -46,10 +46,15 @@ export async function processNotificationOutbox(
       }
 
       const { data: current, error: readError } = await db.from("appointments")
-        .select("status,appointment_date,start_time,deleted_at")
+        .select("status,appointment_date,start_time,deleted_at,patients(email,deleted_at)")
         .eq("id", job.appointment_id).maybeSingle();
       if (readError) throw new Error("OUTBOX_APPOINTMENT_READ_FAILED");
-      if (!currentEventMatches(job.event_type, payload, current)) {
+      // A user may change their email or delete their profile after enqueue.
+      // Never deliver a previously queued notification to an outdated contact.
+      const contactValid = !!current?.patients &&
+        current.patients.deleted_at === null &&
+        current.patients.email === job.destination_email;
+      if (!contactValid || !currentEventMatches(job.event_type, payload, current)) {
         if (await ack("suppressed")) metrics.skipped++;
         else metrics.ackFailed++;
         continue;
