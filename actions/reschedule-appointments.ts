@@ -6,7 +6,7 @@ import { getClinicActor } from "@/lib/auth/clinic-actor";
 import { hasPermission } from "@/lib/auth/permissions";
 import { isISODate, isClockTime } from "@/lib/clinic-time";
 import { createServiceClient } from "@/lib/supabase/server";
-import { sendAppointmentRescheduledEmail } from "@/lib/resend";
+import { tryDeliverAppointmentNotifications } from "@/lib/notification-outbox";
 
 const inputSchema = z.object({
   appointmentId: z.string().uuid(),
@@ -65,19 +65,8 @@ export async function rescheduleAppointment(input: RescheduleInput): Promise<Res
     return { success: false, error: "unknown" };
   }
 
-  // Best effort: the database commit has already succeeded. A provider outage
-  // must not roll back the moved slot or falsely report booking failure.
-  try {
-    const { data: appointment } = await supabase.from("appointments")
-      .select("patients(name,email)").eq("id", details.appointmentId).single();
-    await sendAppointmentRescheduledEmail(
-      appointment?.patients?.email ?? null, appointment?.patients?.name ?? null,
-      details.expectedDate, details.expectedStartTime,
-      details.date, details.startTime,
-    );
-  } catch {
-    // Notification reliability/outbox is a separate milestone.
-  }
+  // Post-commit opportunistic delivery; the outbox survives provider outages.
+  await tryDeliverAppointmentNotifications(details.appointmentId);
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/appointments");
   revalidatePath("/my-appointments");

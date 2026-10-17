@@ -5,16 +5,11 @@ import { revalidatePath } from "next/cache";
 import { getClinicActor } from "@/lib/auth/clinic-actor";
 import { canChangeAppointmentStatus } from "@/lib/auth/permissions";
 import { createServiceClient } from "@/lib/supabase/server";
-import { sendAppointmentConfirmedEmail, sendAppointmentCancelledEmail } from "@/lib/resend";
+import { tryDeliverAppointmentNotifications } from "@/lib/notification-outbox";
 
 const statusSchema = z.enum(["confirmed", "cancelled", "completed", "no_show"]);
 type Status = z.infer<typeof statusSchema>;
 type Result = { success: true } | { success: false; error: "unauthenticated" | "forbidden" | "invalid_input" | "invalid_transition" | "unknown" };
-
-const allowedFrom: Record<Status, ("pending" | "confirmed")[]> = {
-  confirmed: ["pending"], cancelled: ["pending", "confirmed"],
-  completed: ["confirmed"], no_show: ["confirmed"],
-};
 
 export async function updateAppointmentStatus(appointmentId: string, status: Status): Promise<Result> {
   const actor = await getClinicActor();
@@ -24,21 +19,21 @@ export async function updateAppointmentStatus(appointmentId: string, status: Sta
   }
   if (!canChangeAppointmentStatus(actor.role, status)) return { success: false, error: "forbidden" };
   const supabase = createServiceClient();
-  const { data, error } = await supabase.from("appointments")
-    .update({ status }).eq("id", appointmentId)
-    .in("status", allowedFrom[status]).is("deleted_at", null)
-    .select("appointment_date,start_time,patients(name,email)").maybeSingle();
+  const { data, error } = await supabase.rpc("update_staff_appointment_status", {
+    p_appointment_id: appointmentId,
+    p_actor_clerk_user_id: actor.clerkUserId,
+    p_status: status,
+  });
   if (error) {
     if (error.code === "23514") return { success: false, error: "invalid_transition" };
     return { success: false, error: "unknown" };
   }
-  if (!data) return { success: false, error: "invalid_transition" };
-  const send = status === "confirmed" ? sendAppointmentConfirmedEmail
-    : status === "cancelled" ? sendAppointmentCancelledEmail : null;
-  if (send) {
-    await send(data.patients?.email ?? null, data.patients?.name ?? null,
-      data.appointment_date, data.start_time.slice(0, 5)).catch(() => {});
+  if (data !== "updated") {
+    return { success: false, error: data === "invalid_transition" ? "invalid_transition" : "invalid_input" };
   }
+  // The audit and notification rows committed alongside the status mutation.
+  // External email delivery is independent of booking success.
+  await tryDeliverAppointmentNotifications(appointmentId);
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/appointments");
   revalidatePath("/dashboard/calendar");

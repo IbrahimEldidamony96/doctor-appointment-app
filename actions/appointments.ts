@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getPatientSession } from "@/lib/auth/get-patient-session";
 import { sendDoctorNotification } from "@/lib/whatsapp";
-import { sendBookingReceivedEmail } from "@/lib/resend";
+import { tryDeliverAppointmentNotifications } from "@/lib/notification-outbox";
 import { isISODate, isClockTime } from "@/lib/clinic-time";
 
 const schema = z.object({
@@ -50,7 +50,7 @@ export async function createAppointment(input: CreateAppointmentInput): Promise<
   }
   const { data: settings } = await supabase.from("settings").select("doctor_notification_phone").maybeSingle();
   await Promise.allSettled([
-    sendBookingReceivedEmail(patientEmail || null, patientName, date, startTime),
+    tryDeliverAppointmentNotifications(appointmentId),
     settings?.doctor_notification_phone
       ? sendDoctorNotification(settings.doctor_notification_phone, "new", patientName, date, startTime)
       : Promise.resolve(),
@@ -94,6 +94,7 @@ export async function cancelAppointment(input: z.infer<typeof cancelSchema>): Pr
       appointment.patients?.name ?? "Patient", appointment.appointment_date,
       appointment.start_time.slice(0, 5)).catch(() => {});
   }
+  await tryDeliverAppointmentNotifications(parsed.data.appointmentId);
   revalidatePath("/my-appointments");
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/appointments");
