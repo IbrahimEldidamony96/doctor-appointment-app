@@ -19,7 +19,8 @@ try {
     "@electric-sql/pglite@0.5.10","tsx@4.23.15")}
   foreach ($task in $tasks) {
     Write-Host ("Checking " + $task.Label) -ForegroundColor Cyan
-    & $npm @($task.Cmd)
+    $arguments = [string[]]$task.Cmd
+    & $npm @arguments
     if ($LASTEXITCODE -ne 0) { throw ("Failed: " + $task.Label) }
   }
   $tests = @(Get-ChildItem "tests" -Filter "*.test.ts" -File |
