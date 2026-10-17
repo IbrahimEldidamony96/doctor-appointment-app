@@ -1,24 +1,11 @@
-name: Phase 2 readiness checks
+name: Phase 2 checks (manual)
+# No automatic hosted-runner consumption on pushes.
 on:
-  push:
-    branches:
-      - 'feature/phase2-**'
-      - 'fix/phase2-production-readiness'
-  pull_request:
-    branches:
-      - main
-      - 'fix/phase-1-backend-integrity'
-      - 'feature/phase2-**'
-      - 'fix/phase2-production-readiness'
   workflow_dispatch:
 permissions:
   contents: read
-concurrency:
-  group: phase2-ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
 jobs:
-  typecheck-lint-build:
-    name: TypeScript, lint and production build
+  build:
     runs-on: ubuntu-22.04
     timeout-minutes: 25
     env:
@@ -34,12 +21,9 @@ jobs:
       - run: npx tsc --noEmit
       - run: npm run lint
       - run: npm run build
-  database-tests:
-    name: SQL migration and security tests
+  tests:
     runs-on: ubuntu-22.04
     timeout-minutes: 25
-    env:
-      CI: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -47,6 +31,5 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
-      - name: Add isolated test tools without changing lockfile
-        run: npm install --no-save --package-lock=false --ignore-scripts @electric-sql/pglite@0.5.10 tsx@4.23.15
+      - run: npm install --no-save --package-lock=false --ignore-scripts @electric-sql/pglite@0.5.10 tsx@4.23.15
       - run: node --conditions=react-server --import tsx --test tests/*.test.ts
