@@ -8,6 +8,15 @@ try {
   $npm = if (Get-Command npm.cmd -ErrorAction SilentlyContinue) { "npm.cmd" } else { "npm" }
   $version = (& node -p "process.versions.node").Trim()
   if ([int]($version.Split(".")[0]) -lt 22) { throw "Node.js 22+ required, found $version" }
+  # Switching Git branches can leave .next/dev/types referring to routes that no longer exist.
+  # Clean ONLY generated build/typecheck output before verifying this checkout.
+  if (Test-Path -LiteralPath ".next") {
+    Write-Host "Removing stale Next.js generated artifacts" -ForegroundColor Cyan
+    Remove-Item -LiteralPath ".next" -Recurse -Force
+  }
+  if (Test-Path -LiteralPath "tsconfig.tsbuildinfo") {
+    Remove-Item -LiteralPath "tsconfig.tsbuildinfo" -Force
+  }
   $tasks = @(
     @{Label="npm ci"; Cmd=@("ci")},
     @{Label="TypeScript"; Cmd=@("exec","--","tsc","--noEmit")},
