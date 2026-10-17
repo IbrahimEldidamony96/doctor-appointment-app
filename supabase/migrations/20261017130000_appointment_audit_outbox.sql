@@ -47,6 +47,15 @@ alter table clinic.appointment_audit_events enable row level security;
 alter table clinic.notification_outbox enable row level security;
 revoke all on clinic.appointment_audit_events, clinic.notification_outbox
   from public, anon, authenticated;
+-- Earlier migrations grant ALL default table privileges to service_role.
+-- Explicitly revoke writes on every append-only audit table after creation.
+revoke update,delete,truncate,references,trigger on
+  clinic.appointment_audit_events,
+  clinic.staff_audit_log,
+  clinic.manual_booking_audit,
+  clinic.appointment_reschedule_audit,
+  clinic.patient_management_audit from service_role;
+revoke delete,truncate,references,trigger on clinic.notification_outbox from service_role;
 grant select, insert on clinic.appointment_audit_events to service_role;
 grant select, insert, update on clinic.notification_outbox to service_role;
 grant usage,select on sequence clinic.appointment_audit_events_id_seq to service_role;
