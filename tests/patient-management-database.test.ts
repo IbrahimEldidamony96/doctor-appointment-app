@@ -30,14 +30,8 @@ test("profile edits use optimistic locking and audit the actor atomically", asyn
       "select action,actor_clerk_user_id from clinic.patient_management_audit");
     assert.deepEqual(audit.rows, [{ action: "profile_updated", actor_clerk_user_id: doctor }]);
 
-    await assert.rejects(
-      update(first.updated_at!, "x"),
-      denied("22023"),
-    ).catch(async () => {
-      // Input validation can also return a structured refusal instead of throwing.
-      const invalid = (await update(first.updated_at!, "x")).rows[0].result;
-      assert.deepEqual(invalid, { success: false, reason: "invalid_input" });
-    });
+    const invalid = (await update(first.updated_at!, "x")).rows[0].result;
+    assert.deepEqual(invalid, { success: false, reason: "invalid_input" });
   } finally {
     await db.close();
   }
