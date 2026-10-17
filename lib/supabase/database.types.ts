@@ -34,6 +34,10 @@ type Settings = {
   default_slot_minutes: number; updated_at: string; consultation_price: number | null;
   doctor_notification_phone: string | null;
 };
+type PatientManagementAudit = {
+  id: number; patient_id: string; actor_clerk_user_id: string;
+  action: "profile_updated" | "history_exported"; created_at: string;
+};
 type StaffAccount = {
   clerk_user_id: string; display_name: string; role: "secretary"; is_active: boolean;
   created_by_clerk_user_id: string; updated_by_clerk_user_id: string;
@@ -57,6 +61,7 @@ type StaffAuditLog = {
 export type Database = {
   clinic: {
     Tables: {
+      patient_management_audit: Table<PatientManagementAudit, "patient_id" | "actor_clerk_user_id" | "action">;
       staff_accounts: Table<StaffAccount, "clerk_user_id" | "display_name" | "created_by_clerk_user_id" | "updated_by_clerk_user_id">;
       appointment_reschedule_audit: Table<AppointmentRescheduleAudit, "appointment_id" | "actor_clerk_user_id" | "old_date" | "old_start_time" | "old_end_time" | "new_date" | "new_start_time" | "new_end_time">;
       manual_booking_audit: Table<ManualBookingAudit, "appointment_id" | "patient_id" | "actor_clerk_user_id">;
@@ -75,6 +80,10 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      update_staff_patient_profile: { Args: {
+        p_actor_clerk_user_id: string; p_patient_id: string;
+        p_expected_updated_at: string; p_name: string; p_email: string;
+      }; Returns: Json };
       reschedule_staff_appointment: { Args: {
         p_appointment_id: string; p_actor_clerk_user_id: string;
         p_expected_date: string; p_expected_start_time: string; p_expected_end_time: string;
