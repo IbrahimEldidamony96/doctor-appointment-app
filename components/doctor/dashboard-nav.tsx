@@ -8,6 +8,7 @@ import { hasPermission } from "@/lib/auth/permissions";
 const links: { href: string; label: string; icon: typeof LayoutDashboard; permission: ClinicPermission }[] = [
   { href: "/dashboard", label: "نظرة عامة", icon: LayoutDashboard, permission: "dashboard:view" },
   { href: "/dashboard/appointments", label: "المواعيد", icon: CalendarDays, permission: "appointments:view" },
+  { href: "/dashboard/calendar", label: "التقويم", icon: CalendarDays, permission: "calendar:view" },
   { href: "/dashboard/availability", label: "أوقات العمل", icon: Clock3, permission: "schedule:manage" },
   { href: "/dashboard/reviews", label: "التقييمات", icon: MessageSquareText, permission: "reviews:manage" },
   { href: "/dashboard/stats", label: "الإحصاءات", icon: ChartColumnIncreasing, permission: "stats:view" },

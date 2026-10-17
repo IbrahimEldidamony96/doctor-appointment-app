@@ -41,6 +41,7 @@ export async function updateAppointmentStatus(appointmentId: string, status: Sta
   }
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/appointments");
+  revalidatePath("/dashboard/calendar");
   revalidatePath("/my-appointments");
   return { success: true };
 }

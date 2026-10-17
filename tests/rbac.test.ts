@@ -11,7 +11,7 @@ test("only doctors may manage staff, settings, schedules, reviews and revenue", 
 });
 
 test("secretaries can only view bookings and confirm or cancel", () => {
-  for (const resource of ["dashboard:view", "appointments:view", "appointments:create_manual", "appointments:reschedule", "appointments:confirm", "appointments:cancel"] as const) {
+  for (const resource of ["dashboard:view", "appointments:view", "calendar:view", "appointments:create_manual", "appointments:reschedule", "appointments:confirm", "appointments:cancel"] as const) {
     assert.equal(hasPermission("secretary", resource), true, resource);
     assert.equal(hasPermission(null, resource), false, resource);
   }

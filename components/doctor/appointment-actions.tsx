@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { updateAppointmentStatus } from "@/actions/doctor-appointments";
 
@@ -8,6 +9,7 @@ type Status = "pending" | "confirmed" | "cancelled" | "completed" | "no_show";
 type NextStatus = "confirmed" | "cancelled" | "completed" | "no_show";
 
 export function AppointmentActions({ appointmentId, status, canMarkVisit = true }: { appointmentId: string; status: Status; canMarkVisit?: boolean }) {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [current, setCurrent] = useState<Status>(status);
   const [error, setError] = useState<string | null>(null);
@@ -19,6 +21,7 @@ export function AppointmentActions({ appointmentId, status, canMarkVisit = true 
         const result = await updateAppointmentStatus(appointmentId, next);
         if (result.success) {
           setCurrent(next);
+          router.refresh();
           return;
         }
         setError(result.error === "invalid_transition"
