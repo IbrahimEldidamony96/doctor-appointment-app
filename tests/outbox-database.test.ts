@@ -6,14 +6,14 @@ const staffId = "user_staff123456789";
 async function setup() {
   const db = await createTestDatabase();
   await db.exec("insert into clinic.settings(clinic_name) values ('Clinic')");
-  const { rows: dates } = await db.query<{ day: string; other_day: string }>(\`
+  const { rows: dates } = await db.query<{ day: string; other_day: string }>(`
     select ((now() at time zone 'Africa/Cairo')::date + 2)::text as day,
-      ((now() at time zone 'Africa/Cairo')::date + 3)::text as other_day\`);
+      ((now() at time zone 'Africa/Cairo')::date + 3)::text as other_day`);
   const { day, other_day } = dates[0];
   for (const date of [day, other_day]) {
-    await db.query(\`insert into clinic.availability
+    await db.query(`insert into clinic.availability
       (day_of_week,start_time,end_time,slot_duration_minutes)
-      values (extract(dow from $1::date),'09:00','12:00',30)\`, [date]);
+      values (extract(dow from $1::date),'09:00','12:00',30)`, [date]);
   }
   const { rows } = await db.query<{ id: string }>(
     "insert into clinic.patients(phone,name,email) values('+201234567897','Patient','patient@example.com') returning id");

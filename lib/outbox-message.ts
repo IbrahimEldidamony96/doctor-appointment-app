@@ -39,10 +39,10 @@ export function outboxEmail(event: OutboxEvent, p: OutboxPayload): {
     rescheduled: "تم تغيير حجزك",
   }[event];
   const oldTime = event === "rescheduled" && p.previous_date && p.previous_time
-    ? \` من \${p.previous_date} الساعة \${p.previous_time}\` : "";
+    ? ` من ${p.previous_date} الساعة ${p.previous_time}` : "";
   return {
     subject,
-    html: \`<p>مرحبًا \${safe(p.name)}،</p><p>\${content}\${safe(oldTime)}. موعد الحجز: \${safe(p.date)} الساعة \${safe(p.time)}.</p>\`,
+    html: `<p>مرحبًا ${safe(p.name)}،</p><p>${content}${safe(oldTime)}. موعد الحجز: ${safe(p.date)} الساعة ${safe(p.time)}.</p>`,
   };
 }
 export function currentEventMatches(
