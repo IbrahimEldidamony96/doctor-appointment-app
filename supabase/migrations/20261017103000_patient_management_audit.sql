@@ -1,4 +1,9 @@
 -- Doctor-only patient profile edits & controlled per-patient CSV export audit.
+-- Cover scoped, latest-first visit history without scanning unrelated patients.
+create index if not exists idx_appointments_patient_history
+  on clinic.appointments(patient_id, appointment_date desc, start_time desc, id desc)
+  where deleted_at is null;
+
 -- The application authorizes current Clerk role before using the service-role RPC.
 create table clinic.patient_management_audit (
   id bigint generated always as identity primary key,
