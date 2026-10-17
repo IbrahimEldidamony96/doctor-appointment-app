@@ -39,6 +39,12 @@ type StaffAccount = {
   created_by_clerk_user_id: string; updated_by_clerk_user_id: string;
   created_at: string; updated_at: string;
 };
+type AppointmentRescheduleAudit = {
+  id: number; appointment_id: string; actor_clerk_user_id: string;
+  old_date: string; old_start_time: string; old_end_time: string;
+  new_date: string; new_start_time: string; new_end_time: string;
+  created_at: string;
+};
 type ManualBookingAudit = {
   id: number; appointment_id: string; patient_id: string;
   actor_clerk_user_id: string; created_at: string;
@@ -52,6 +58,7 @@ export type Database = {
   clinic: {
     Tables: {
       staff_accounts: Table<StaffAccount, "clerk_user_id" | "display_name" | "created_by_clerk_user_id" | "updated_by_clerk_user_id">;
+      appointment_reschedule_audit: Table<AppointmentRescheduleAudit, "appointment_id" | "actor_clerk_user_id" | "old_date" | "old_start_time" | "old_end_time" | "new_date" | "new_start_time" | "new_end_time">;
       manual_booking_audit: Table<ManualBookingAudit, "appointment_id" | "patient_id" | "actor_clerk_user_id">;
       staff_audit_log: Table<StaffAuditLog, "actor_clerk_user_id" | "target_clerk_user_id" | "action">;
       patients: Table<Patient, "phone">;
@@ -68,6 +75,11 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      reschedule_staff_appointment: { Args: {
+        p_appointment_id: string; p_actor_clerk_user_id: string;
+        p_expected_date: string; p_expected_start_time: string; p_expected_end_time: string;
+        p_date: string; p_start_time: string; p_end_time: string;
+      }; Returns: Json };
       create_staff_appointment: { Args: { p_actor_clerk_user_id: string; p_phone: string; p_patient_name: string; p_date: string; p_start_time: string; p_end_time: string; p_reason: string | null }; Returns: string };
       get_dashboard_stats: { Args: Record<string, never>; Returns: { total_appointments: number; completed_appointments: number; cancelled_appointments: number; no_show_appointments: number; cancellation_rate: number | null; total_revenue: number; revenue_this_month: number; average_rating: number | null; reviews_count: number }[] };
       create_patient_appointment: { Args: { p_patient_id: string; p_date: string; p_start_time: string; p_end_time: string; p_reason?: string | null; p_patient_name?: string | null; p_patient_email?: string | null }; Returns: string };

@@ -37,3 +37,11 @@ export async function sendAppointmentCancelledEmail(to: string | null, name: str
   return sendNotification(to, name, "تم إلغاء الموعد",
     `تم إلغاء موعدك يوم ${date} الساعة ${time}.`);
 }
+
+export async function sendAppointmentRescheduledEmail(
+  to: string | null, name: string | null,
+  previousDate: string, previousTime: string, date: string, time: string,
+) {
+  return sendNotification(to, name, "تم تغيير موعد زيارتك",
+    `تم تغيير موعدك من ${previousDate} الساعة ${previousTime} إلى ${date} الساعة ${time}. لو التوقيت مش مناسب تواصل مع العيادة.`);
+}

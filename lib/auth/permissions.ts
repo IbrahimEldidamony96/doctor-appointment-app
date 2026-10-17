@@ -4,6 +4,7 @@ export type ClinicPermission =
   | "dashboard:view"
   | "appointments:view"
   | "appointments:create_manual"
+  | "appointments:reschedule"
   | "appointments:confirm"
   | "appointments:cancel"
   | "appointments:mark_visit"
@@ -14,7 +15,7 @@ export type ClinicPermission =
   | "staff:manage";
 
 const secretaryPermissions: ReadonlySet<ClinicPermission> = new Set([
-  "dashboard:view", "appointments:view", "appointments:create_manual", "appointments:confirm", "appointments:cancel",
+  "dashboard:view", "appointments:view", "appointments:create_manual", "appointments:reschedule", "appointments:confirm", "appointments:cancel",
 ]);
 
 export function hasPermission(role: ClinicRole | null, permission: ClinicPermission): boolean {

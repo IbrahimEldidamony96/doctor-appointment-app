@@ -57,7 +57,11 @@ export default async function DoctorAppointmentsPage() {
               </p>
             )}
             <div className="mt-2">
-              <AppointmentActions appointmentId={appt.id} status={appt.status} canMarkVisit={actor.role === "doctor"} />
+              <div className="flex flex-wrap items-center gap-3">
+                <AppointmentActions appointmentId={appt.id} status={appt.status} canMarkVisit={actor.role === "doctor"} />
+                {(appt.status === "pending" || appt.status === "confirmed") &&
+                  <Link href={`/dashboard/appointments/${appt.id}/reschedule`} className="rounded-lg border border-teal-200 px-4 py-2 text-xs font-bold text-teal-800 hover:bg-teal-50">تغيير الموعد</Link>}
+              </div>
             </div>
           </li>
         ))}
