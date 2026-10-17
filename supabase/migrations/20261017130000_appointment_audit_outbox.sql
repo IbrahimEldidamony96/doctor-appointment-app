@@ -158,6 +158,13 @@ begin
   if p_limit is null or p_limit < 1 or p_limit > 10 then
     raise exception 'INVALID_OUTBOX_LIMIT' using errcode='22023';
   end if;
+  -- A worker can crash after its fifth claim; expire its final lease
+  -- instead of leaving the job processing forever.
+  update clinic.notification_outbox o
+    set state='dead',claimed_at=null,claim_token=null,
+      last_error='final_worker_lease_expired'
+    where o.state='processing' and o.attempts>=5
+      and o.claimed_at < now() - interval '5 minutes';
   return query
   with candidates as (
     select o.id from clinic.notification_outbox o
