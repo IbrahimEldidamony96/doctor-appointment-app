@@ -6,7 +6,7 @@
 
 ## Features
 
-1. `/dashboard/patients` is available to authorized doctor/active secretary accounts. It does **not enumerate patients on page load**. Staff explicitly searches by a 2+ letter patient name, or 3+ international mobile digits. Search uses server actions with current Clerk/session role checks, allowlisted characters, bounded count + 25 results per page, and soft-deleted patients excluded. The query is sent in an authenticated POST action rather than inserted into URL/browser history. Only name, phone and patient ID are returned.
+1. `/dashboard/patients` is available to authorized doctor/active secretary accounts and loads the first page of all non-deleted patients automatically. The directory defaults to 10 patients per page, with 25/50 also selectable. Staff can filter by name or international mobile prefix, filter patients with or without a recorded name, and sort by registration date, name, or phone in either direction. Every request checks the current Clerk/session role, validates search/filter/sort/page-size inputs, and uses a bounded server-side page with deterministic ID tie-breaking. Search text stays in an authenticated POST action instead of URL/browser history. Only patient ID, name, phone, and registration date are returned.
 2. `/dashboard/patients/[patientId]` checks current `patients:history` permission and renders patient identity and paginated visit history (20/page). The server validates UUID and page bounds; deleted patient and appointments are excluded. Receptionists see identity, appointment date/time/status; the doctor additionally sees the email, DOB/gender and reason for visit.
 3. Doctor-only `patients:manage` action edits **name/email only**, never overwrites verified phone, and uses the `clinic.update_staff_patient_profile` SECURITY INVOKER RPC. It checks the old `updated_at` under a row lock to reject lost updates and atomically writes `profile_updated` to `clinic.patient_management_audit`.
 4. Doctor-only `patients:export` action prepares an individual patient's visit-history CSV (UTF-8 BOM) with fields escaped against CSV injection (quotes, Excel formula cells). The export is limited to **1,000 appointments per patient** and fails rather than truncating larger histories; every successful export action first inserts an auditable `history_exported` event. No public download URLs or direct client-side Supabase access.
@@ -20,7 +20,7 @@
 - Exporting is **doctor-only**, not receptionist-accessible; no bulk dump of all patients. Staff profile edits are audited; patient self-service edits are outside this step's staff audit.
 - Query text is not embedded in a GET URL; patient data still requires appropriate retention, access logs and encrypted backups for a production medical platform.
 - Appointment history is staff booking/visit history, not a complete electronic health record. Clinical notes or prescriptions are not added.
-- Search pagination is capped to 1,000 pages; deep history browsing is also bounded for abuse prevention.
+- Directory pagination clamps the requested page to the filtered count and restricts page sizes to 10, 25, or 50; visit-history pagination retains its existing bounds.
 
 ## Files
 

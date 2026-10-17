@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  csvCell, parsePatientPage, parsePatientSearch, visitsToCsv,
+  csvCell, parsePatientDirectoryInput, parsePatientPage, parsePatientSearch, visitsToCsv,
 } from "../lib/patient-management";
 
-test("patient search refuses broad directory exposure and filter injection", () => {
-  assert.deepEqual(parsePatientSearch(""), { kind: "invalid" });
+test("empty search opens the directory while nonempty searches reject filter injection", () => {
+  assert.deepEqual(parsePatientSearch(""), { kind: "all" });
+  assert.deepEqual(parsePatientSearch(" \t\n "), { kind: "all" });
   assert.deepEqual(parsePatientSearch("a"), { kind: "invalid" });
   assert.deepEqual(parsePatientSearch("%"), { kind: "invalid" });
   assert.deepEqual(parsePatientSearch("test_name"), { kind: "invalid" });
@@ -18,6 +19,30 @@ test("patient search refuses broad directory exposure and filter injection", () 
   assert.deepEqual(parsePatientSearch("+201000"), { kind: "phone", term: "+201000" });
   assert.deepEqual(parsePatientSearch("201000"), { kind: "phone", term: "+201000" });
   assert.deepEqual(parsePatientSearch("a".repeat(61)), { kind: "invalid" });
+});
+
+test("directory defaults and choices are validated independently of visit history limits", () => {
+  assert.deepEqual(parsePatientDirectoryInput({ query: "", page: 1 }), {
+    search: { kind: "all" }, page: 1, pageSize: 10, profile: "all", sort: "newest",
+  });
+  assert.deepEqual(parsePatientDirectoryInput({
+    query: "  أحمد   علي ", page: 1001, pageSize: 50, profile: "named", sort: "name_desc",
+  }), {
+    search: { kind: "name", term: "أحمد علي" }, page: 1001, pageSize: 50, profile: "named", sort: "name_desc",
+  });
+  for (const page of [-1, 0, 1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1]) {
+    assert.equal(parsePatientDirectoryInput({ query: "", page })?.page, 1);
+  }
+  assert.equal(parsePatientDirectoryInput({ query: "", page: Number.MAX_SAFE_INTEGER })?.page,
+    Number.MAX_SAFE_INTEGER);
+  for (const value of [
+    null, [], {}, { query: [] }, { query: "Ahmed%" },
+    { query: "", pageSize: "10" }, { query: "", pageSize: 1000 },
+    { query: "", profile: "all),deleted_at.not.is.null" },
+    { query: "", sort: "name.asc,phone.desc" }, { query: "", sort: "__proto__" },
+  ]) {
+    assert.equal(parsePatientDirectoryInput(value), null);
+  }
 });
 
 test("untrusted patient pagination is bounded and deterministic", () => {

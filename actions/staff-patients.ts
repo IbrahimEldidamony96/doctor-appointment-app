@@ -5,44 +5,17 @@ import { revalidatePath } from "next/cache";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getClinicActor } from "@/lib/auth/clinic-actor";
 import { hasPermission } from "@/lib/auth/permissions";
+import { searchPatientDirectory } from "@/lib/patient-directory";
 import {
-  MAX_EXPORT_VISITS, PATIENT_PAGE_SIZE, parsePatientSearch, parsePatientPage,
-  visitsToCsv, type PatientSearchRow, type PatientVisit,
+  MAX_EXPORT_VISITS,
+  visitsToCsv, type PatientDirectoryInput, type PatientDirectorySearchResult, type PatientVisit,
 } from "@/lib/patient-management";
 
-export type PatientSearchResult =
-  | { success: true; patients: PatientSearchRow[]; count: number; page: number; pages: number }
-  | { success: false; error: "forbidden" | "invalid_query" | "unknown" };
+export type PatientSearchResult = PatientDirectorySearchResult;
 
-export async function searchClinicPatients(input: {
-  query: string; page: number;
-}): Promise<PatientSearchResult> {
+export async function searchClinicPatients(input: PatientDirectoryInput): Promise<PatientSearchResult> {
   const actor = await getClinicActor();
-  if (!actor || !hasPermission(actor.role, "patients:search"))
-    return { success: false, error: "forbidden" };
-
-  if (!input || typeof input.query !== "string") return { success: false, error: "invalid_query" };
-  const parsed = parsePatientSearch(input.query);
-  if (parsed.kind === "invalid") return { success: false, error: "invalid_query" };
-  const page = parsePatientPage(input.page);
-
-  let query = createServiceClient().from("patients")
-    .select("id,name,phone,created_at", { count: "exact" })
-    .is("deleted_at", null)
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: true });
-  if (parsed.kind === "phone") {
-    query = query.like("phone", parsed.term + "%");
-  } else {
-    query = query.ilike("name", "%" + parsed.term + "%");
-  }
-  const start = (page - 1) * PATIENT_PAGE_SIZE;
-  const { data, error, count } = await query.range(start, start + PATIENT_PAGE_SIZE - 1);
-  if (error || !data || count === null) return { success: false, error: "unknown" };
-  return {
-    success: true, patients: data, count,
-    page, pages: Math.ceil(count / PATIENT_PAGE_SIZE),
-  };
+  return searchPatientDirectory(actor, input, createServiceClient);
 }
 
 const profileSchema = z.object({

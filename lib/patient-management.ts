@@ -1,13 +1,34 @@
 import type { AppointmentStatus } from "./supabase/database.types";
 
-export const PATIENT_PAGE_SIZE = 25;
+export const PATIENT_PAGE_SIZE = 10;
 export const VISIT_PAGE_SIZE = 20;
 export const MAX_PATIENT_PAGE = 1000;
 export const MAX_EXPORT_VISITS = 1000;
 
+export type PatientPageSize = 10 | 25 | 50;
+export type PatientProfileFilter = "all" | "named" | "unnamed";
+export type PatientSort = "newest" | "oldest" | "name_asc" | "name_desc" | "phone_asc" | "phone_desc";
+
 export type PatientSearch =
+  | { kind: "all" }
   | { kind: "name" | "phone"; term: string }
   | { kind: "invalid" };
+
+export type PatientDirectoryInput = {
+  query: string;
+  page: number;
+  pageSize?: PatientPageSize;
+  profile?: PatientProfileFilter;
+  sort?: PatientSort;
+};
+
+export type PatientDirectoryOptions = {
+  search: Exclude<PatientSearch, { kind: "invalid" }>;
+  page: number;
+  pageSize: PatientPageSize;
+  profile: PatientProfileFilter;
+  sort: PatientSort;
+};
 
 export type PatientSearchRow = {
   id: string;
@@ -15,6 +36,18 @@ export type PatientSearchRow = {
   phone: string;
   created_at: string;
 };
+
+export type PatientDirectory = {
+  patients: PatientSearchRow[];
+  count: number;
+  page: number;
+  pages: number;
+  pageSize: PatientPageSize;
+};
+
+export type PatientDirectorySearchResult =
+  | ({ success: true } & PatientDirectory)
+  | { success: false; error: "forbidden" | "invalid_query" | "unknown" };
 
 export type PatientVisit = {
   id: string;
@@ -27,8 +60,8 @@ export type PatientVisit = {
 
 export function parsePatientSearch(value: string): PatientSearch {
   const query = value.trim().replace(/\s+/gu, " ");
-  // Search is opt-in: never dump the patient directory by default.
-  if (!query || query.length > 60) return { kind: "invalid" };
+  if (!query) return { kind: "all" };
+  if (query.length > 60) return { kind: "invalid" };
   if (/^\+?[0-9]+$/u.test(query)) {
     if (!/^\+?[0-9]{3,15}$/u.test(query)) return { kind: "invalid" };
     return { kind: "phone", term: query.startsWith("+") ? query : "+" + query };
@@ -37,6 +70,29 @@ export function parsePatientSearch(value: string): PatientSearch {
   // including %, _, *, \, commas and parentheses; Unicode Arabic marks work.
   if (!/^[\p{L}\p{M}\p{N} .'-]{2,60}$/u.test(query)) return { kind: "invalid" };
   return { kind: "name", term: query };
+}
+
+/** Validate public filter choices before any value reaches PostgREST. */
+export function parsePatientDirectoryInput(value: unknown): PatientDirectoryOptions | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const input = value as Record<string, unknown>;
+  if (typeof input.query !== "string") return null;
+  const search = parsePatientSearch(input.query);
+  if (search.kind === "invalid") return null;
+
+  const pageSize = input.pageSize === undefined ? PATIENT_PAGE_SIZE : input.pageSize;
+  if (pageSize !== 10 && pageSize !== 25 && pageSize !== 50) return null;
+  const profile = input.profile === undefined ? "all" : input.profile;
+  if (profile !== "all" && profile !== "named" && profile !== "unnamed") return null;
+  const sort = input.sort === undefined ? "newest" : input.sort;
+  if (sort !== "newest" && sort !== "oldest" && sort !== "name_asc" && sort !== "name_desc"
+    && sort !== "phone_asc" && sort !== "phone_desc") return null;
+
+  // The directory is clamped against its actual count, independent of the
+  // history page limit. Every page advertised by the directory remains reachable.
+  const page = typeof input.page === "number" && Number.isSafeInteger(input.page) && input.page > 0
+    ? input.page : 1;
+  return { search, page, pageSize, profile, sort };
 }
 
 export function parsePatientPage(value: number | string | undefined): number {
