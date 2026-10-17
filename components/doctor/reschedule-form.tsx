@@ -71,7 +71,7 @@ export function RescheduleForm({ appointment, slots }: { appointment: Appointmen
     <div className="rounded-xl bg-slate-50 p-5">
       <p className="text-xs font-bold text-slate-500">الموعد الحالي</p>
       <p className="mt-2 font-extrabold">{displayDate(appointment.appointment_date)} — <span dir="ltr">{appointment.start_time.slice(0, 5)}</span></p>
-      <p className="mt-2 text-xs text-slate-500">هتفضل حالة الحجز ${appointment.status === "confirmed" ? "مؤكد" : "بانتظار التأكيد"} بعد النقل.</p>
+      <p className="mt-2 text-xs text-slate-500">هتفضل حالة الحجز {appointment.status === "confirmed" ? "مؤكد" : "بانتظار التأكيد"} بعد النقل.</p>
     </div>
     <section>
       <h2 className="mb-3 font-extrabold">1. اختار يوم جديد</h2>
