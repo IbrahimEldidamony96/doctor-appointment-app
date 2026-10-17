@@ -38,6 +38,20 @@ type PatientManagementAudit = {
   id: number; patient_id: string; actor_clerk_user_id: string;
   action: "profile_updated" | "history_exported"; created_at: string;
 };
+type AppointmentAuditEvent = {
+  id: number; appointment_id: string; patient_id: string; actor: string; event_type: string;
+  old_status: string | null; new_status: string | null;
+  old_date: string | null; new_date: string | null;
+  old_start_time: string | null; new_start_time: string | null;
+  old_end_time: string | null; new_end_time: string | null; created_at: string;
+};
+type NotificationOutbox = {
+  id: string; audit_event_id: number; appointment_id: string;
+  event_type: string; destination_email: string; payload: Json; state: string;
+  attempts: number; next_attempt_at: string; claimed_at: string | null; claim_token: string | null;
+  delivered_at: string | null; provider_message_id: string | null; last_error: string | null;
+  created_at: string;
+};
 type StaffAccount = {
   clerk_user_id: string; display_name: string; role: "secretary"; is_active: boolean;
   created_by_clerk_user_id: string; updated_by_clerk_user_id: string;
@@ -62,6 +76,8 @@ export type Database = {
   clinic: {
     Tables: {
       patient_management_audit: Table<PatientManagementAudit, "patient_id" | "actor_clerk_user_id" | "action">;
+      appointment_audit_events: Table<AppointmentAuditEvent, "appointment_id" | "patient_id" | "actor" | "event_type">;
+      notification_outbox: Table<NotificationOutbox, "audit_event_id" | "appointment_id" | "event_type" | "destination_email" | "payload">;
       staff_accounts: Table<StaffAccount, "clerk_user_id" | "display_name" | "created_by_clerk_user_id" | "updated_by_clerk_user_id">;
       appointment_reschedule_audit: Table<AppointmentRescheduleAudit, "appointment_id" | "actor_clerk_user_id" | "old_date" | "old_start_time" | "old_end_time" | "new_date" | "new_start_time" | "new_end_time">;
       manual_booking_audit: Table<ManualBookingAudit, "appointment_id" | "patient_id" | "actor_clerk_user_id">;
@@ -80,6 +96,17 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      update_staff_appointment_status: { Args: {
+        p_appointment_id: string; p_actor_clerk_user_id: string; p_status: string;
+      }; Returns: string };
+      claim_notification_outbox: { Args: { p_limit?: number; p_appointment_id?: string | null }; Returns: {
+        id: string; claim_token: string; event_type: string; destination_email: string;
+        payload: Json; appointment_id: string; attempts: number;
+      }[] };
+      finish_notification_outbox: { Args: {
+        p_id: string; p_claim_token: string; p_result: string;
+        p_provider_message_id?: string | null; p_error?: string | null;
+      }; Returns: boolean };
       update_staff_patient_profile: { Args: {
         p_actor_clerk_user_id: string; p_patient_id: string;
         p_expected_updated_at: string; p_name: string; p_email: string;

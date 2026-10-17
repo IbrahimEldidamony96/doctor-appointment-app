@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { canChangeAppointmentStatus, hasPermission } from "../lib/auth/permissions";
 
 test("only doctors may manage staff, settings, schedules, reviews and revenue", () => {
-  for (const resource of ["staff:manage", "settings:manage", "schedule:manage", "stats:view", "reviews:manage", "patients:manage", "patients:export"] as const) {
+  for (const resource of ["staff:manage", "settings:manage", "schedule:manage", "stats:view", "reviews:manage", "patients:manage", "patients:export", "operations:view"] as const) {
     assert.equal(hasPermission("secretary", resource), false, resource);
     assert.equal(hasPermission("doctor", resource), true, resource);
     assert.equal(hasPermission(null, resource), false, resource);

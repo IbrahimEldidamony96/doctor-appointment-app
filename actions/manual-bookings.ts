@@ -7,6 +7,7 @@ import { hasPermission } from "@/lib/auth/permissions";
 import { createServiceClient } from "@/lib/supabase/server";
 import { isISODate, isClockTime } from "@/lib/clinic-time";
 import { PHONE_PATTERN } from "@/lib/auth/constants";
+import { tryDeliverAppointmentNotifications } from "@/lib/notification-outbox";
 
 const manualBookingSchema = z.object({
   phone: z.string().regex(PHONE_PATTERN),
@@ -51,6 +52,7 @@ export async function createManualBooking(input: CreateManualBookingInput): Prom
     }
     return { success: false, error: "unknown" };
   }
+  await tryDeliverAppointmentNotifications(data);
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/appointments");
   revalidatePath("/book");
