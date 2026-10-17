@@ -15,7 +15,14 @@ export function readOutboxPayload(value: unknown): OutboxPayload | null {
     typeof row.time !== "string" || typeof row.status !== "string" ||
     (row.previous_date !== null && typeof row.previous_date !== "string") ||
     (row.previous_time !== null && typeof row.previous_time !== "string")) return null;
-  return row as OutboxPayload;
+  return {
+    name: row.name as string,
+    date: row.date as string,
+    time: row.time as string,
+    status: row.status as string,
+    previous_date: row.previous_date as string | null,
+    previous_time: row.previous_time as string | null,
+  };
 }
 const entities: Record<string, string> = {
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
