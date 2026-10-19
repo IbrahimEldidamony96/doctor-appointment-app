@@ -3,6 +3,8 @@
 Branch: `feature/phase2-02-manual-booking` (based on `feature/phase2-01-secretary-rbac`).
 **Implemented in source control only; no live database migrated and no production build verification.**
 
+> **Historical phase handoff:** Clerk identity references below describe the original implementation. Current staff booking uses shared WhatsApp OTP and active doctor, nurse or secretary permissions. See [WhatsApp authentication setup](WHATSAPP_AUTH.md) for current migration, setup and authorization behavior.
+
 ## Flow
 1. Authenticated doctor/active secretary enters `/dashboard/appointments/new`.
 2. Server component checks current RBAC permission `appointments:create_manual` and renders two weeks of Cairo-aware availability.

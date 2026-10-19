@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createTestDatabase } from "./helpers/database";
+import { createTestDatabase, seedStaff } from "./helpers/database";
 
 test("manual booking creates a patient and audit record, rejects overlaps and preserves existing profile", async () => {
   const db = await createTestDatabase();
   const doctor = "user_doctor123456789";
   const phone = "+201234567891";
   try {
+    await seedStaff(db, doctor, 'doctor');
     const upcoming = await db.query<{ day: string; dow: number }>(`
       select ((now() at time zone 'Africa/Cairo')::date + 1)::text as day,
       extract(dow from ((now() at time zone 'Africa/Cairo')::date + 1))::int as dow`);
@@ -20,9 +21,9 @@ test("manual booking creates a patient and audit record, rejects overlaps and pr
     assert.match(result.rows[0].create_staff_appointment, /^[a-f0-9-]{36}$/);
     const patient = await db.query<{ name: string }>("select name from clinic.patients where phone=$1", [phone]);
     assert.equal(patient.rows[0].name, "مريض يدوي");
-    const audit = await db.query<{ actor_clerk_user_id: string }>(
-      "select actor_clerk_user_id from clinic.manual_booking_audit");
-    assert.equal(audit.rows[0].actor_clerk_user_id, doctor);
+    const audit = await db.query<{ actor_id: string }>(
+      "select actor_id from clinic.manual_booking_audit");
+    assert.equal(audit.rows[0].actor_id, doctor);
     await assert.rejects(db.query(
       "select clinic.create_staff_appointment($1,$2,$3,$4::date,$5::time,$6::time,$7)",
       [doctor, phone, "اسم مختلف", day, "12:00", "12:30", null],

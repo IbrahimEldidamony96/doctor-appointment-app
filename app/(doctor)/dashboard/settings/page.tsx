@@ -1,13 +1,10 @@
-import { auth } from "@clerk/nextjs/server";
-import { isAuthorizedDoctor } from "@/lib/auth/doctor-access";
+import { requireClinicPermission } from "@/lib/auth/clinic-actor";
 import { redirect } from "next/navigation";
 import { createServiceClient } from "@/lib/supabase/server";
 import { SettingsForm } from "@/components/doctor/settings-form";
 
 export default async function SettingsPage() {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
-  if (!isAuthorizedDoctor(userId)) redirect("/doctor-access-denied");
+  if (!await requireClinicPermission("settings:manage")) redirect("/doctor-access-denied");
 
   const supabase = createServiceClient();
   const { data: settings } = await supabase.from("settings").select("*").maybeSingle();

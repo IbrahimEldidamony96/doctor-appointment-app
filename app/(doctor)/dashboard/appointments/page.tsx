@@ -1,4 +1,5 @@
 import { getClinicActor } from "@/lib/auth/clinic-actor";
+import { hasPermission } from "@/lib/auth/permissions";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createServiceClient } from "@/lib/supabase/server";
@@ -15,7 +16,8 @@ const statusLabels: Record<string, string> = {
 
 export default async function DoctorAppointmentsPage() {
   const actor = await getClinicActor();
-  if (!actor) redirect("/doctor-access-denied");
+  if (!actor || !hasPermission(actor.role, "appointments:view")) redirect("/doctor-access-denied");
+  const canViewClinicalDetails = hasPermission(actor.role, "patients:manage");
 
   const supabase = createServiceClient();
   const todayStr = getClinicDateTime().date;
@@ -51,14 +53,14 @@ export default async function DoctorAppointmentsPage() {
             <p className="mt-1 text-sm">
               {appt.patients?.name ?? "بدون اسم"} — {appt.patients?.phone}
             </p>
-            {appt.reason_for_visit && (
+            {canViewClinicalDetails && appt.reason_for_visit && (
               <p className="mt-1 text-sm text-muted-foreground">
                 {appt.reason_for_visit}
               </p>
             )}
             <div className="mt-2">
               <div className="flex flex-wrap items-center gap-3">
-                <AppointmentActions appointmentId={appt.id} status={appt.status} canMarkVisit={actor.role === "doctor"} />
+                <AppointmentActions appointmentId={appt.id} status={appt.status} canMarkVisit={hasPermission(actor.role, "appointments:mark_visit")} />
                 {(appt.status === "pending" || appt.status === "confirmed") &&
                   <Link href={`/dashboard/appointments/${appt.id}/reschedule`} className="rounded-lg border border-teal-200 px-4 py-2 text-xs font-bold text-teal-800 hover:bg-teal-50">تغيير الموعد</Link>}
               </div>

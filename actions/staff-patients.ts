@@ -37,7 +37,7 @@ export async function updateClinicPatient(input: PatientProfileUpdate): Promise<
   if (!parsed.success) return { success: false, error: "invalid_input" };
   const p = parsed.data;
   const { data, error } = await createServiceClient().rpc("update_staff_patient_profile", {
-    p_actor_clerk_user_id: actor.clerkUserId,
+    p_actor_id: actor.id,
     p_patient_id: p.patientId,
     p_expected_updated_at: p.expectedUpdatedAt,
     p_name: p.name,
@@ -90,7 +90,7 @@ export async function exportClinicPatientHistory(patientId: string): Promise<Pat
   // Export fails closed when its audit record cannot be committed.
   const { error: auditError } = await db.from("patient_management_audit").insert({
     patient_id: patientId,
-    actor_clerk_user_id: actor.clerkUserId,
+    actor_id: actor.id,
     action: "history_exported",
   });
   if (auditError) return { success: false, error: "unknown" };

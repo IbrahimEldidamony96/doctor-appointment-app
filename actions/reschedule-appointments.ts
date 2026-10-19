@@ -39,7 +39,7 @@ export async function rescheduleAppointment(input: RescheduleInput): Promise<Res
   // and the serialized, service-role-only PostgreSQL RPC respectively.
   const { data, error } = await supabase.rpc("reschedule_staff_appointment", {
     p_appointment_id: details.appointmentId,
-    p_actor_clerk_user_id: actor.clerkUserId,
+    p_actor_id: actor.id,
     p_expected_date: details.expectedDate,
     p_expected_start_time: details.expectedStartTime,
     p_expected_end_time: details.expectedEndTime,

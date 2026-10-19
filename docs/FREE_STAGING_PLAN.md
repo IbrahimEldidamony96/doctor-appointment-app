@@ -1,5 +1,7 @@
 # No-cost verification and staging
 
+Authentication now uses WhatsApp OTP for patients and approved clinic staff. Follow [WhatsApp authentication setup](WHATSAPP_AUTH.md) for current migration and first-owner provisioning; the account and CI observations below are historical snapshots, not a current verification result.
+
 ## Verified account state, 2026-10-17
 The connected Supabase organization **IbrahimEldidamony96's Org** is on plan **Free**.
 Existing `doctor-appointment` project is active; two old projects are inactive.
@@ -43,7 +45,7 @@ Existing GitHub Actions runs failed before any steps were executed. The Build is
 
 - [ ] Run local build, ESLint, TypeScript and PGlite suites until green
 - [ ] Validate every migration against a disposable LOCAL Supabase database
-- [ ] Test RBAC, OTP/Clerk, booking, reschedule, Paymob HMAC sandbox/mocks and notification retry mocks
+- [ ] Test current doctor/nurse/secretary RBAC, shared WhatsApp OTP, first-owner protection, booking, reschedule, Paymob HMAC sandbox/mocks and notification retry mocks
 - [ ] Never send billable WhatsApp/SMS or real payment charges for tests
 - [ ] Review and merge stacked PRs in dependency order only after checks pass
 - [ ] Do not deploy to production before live-like integration tests and privacy/security review

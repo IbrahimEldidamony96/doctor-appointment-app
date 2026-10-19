@@ -23,7 +23,7 @@ export default async function CalendarPage({
   const today = getClinicDateTime().date;
   const query = parseCalendarQuery(await searchParams, today);
   const days = visibleCalendarDays(query.date, query.view);
-  const calendar = await getCalendarData(days[0], days[days.length - 1], query.status);
+  const calendar = await getCalendarData(days[0], days[days.length - 1], query.status, actor.role);
   return <CalendarBoard query={query} days={days} today={today}
     appointments={calendar.appointments} availability={calendar.availability}
     blocked={calendar.blocked} role={actor.role}/>;

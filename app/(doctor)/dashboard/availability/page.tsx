@@ -1,13 +1,10 @@
-import { auth } from "@clerk/nextjs/server";
-import { isAuthorizedDoctor } from "@/lib/auth/doctor-access";
+import { requireClinicPermission } from "@/lib/auth/clinic-actor";
 import { redirect } from "next/navigation";
 import { createServiceClient } from "@/lib/supabase/server";
 import { AvailabilityManager } from "@/components/doctor/availability-manager";
 
 export default async function AvailabilityPage() {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
-  if (!isAuthorizedDoctor(userId)) redirect("/doctor-access-denied");
+  if (!await requireClinicPermission("schedule:manage")) redirect("/doctor-access-denied");
 
   const supabase = createServiceClient();
 

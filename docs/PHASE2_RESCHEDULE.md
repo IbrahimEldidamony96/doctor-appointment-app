@@ -4,6 +4,8 @@
 **Base:** `feature/phase2-02-manual-booking` (stacked on PR #3 → PR #2 → PR #1).  
 **Status:** Source changes committed to GitHub. **Not built, tested or deployed** in a runnable environment; no live SQL changes.
 
+> **Historical phase handoff:** Clerk identity references below describe the original implementation. Current staff rescheduling uses shared WhatsApp OTP and active doctor, nurse or secretary permissions. See [WhatsApp authentication setup](WHATSAPP_AUTH.md) for current migration, setup and authorization behavior.
+
 ## Scope
 
 This iteration implements rescheduling by an authenticated **doctor or active receptionist**. Patient self-service rescheduling, external notifications/outbox and direct WhatsApp changes are separate future work.

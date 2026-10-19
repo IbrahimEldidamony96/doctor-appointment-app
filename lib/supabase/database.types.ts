@@ -35,7 +35,7 @@ type Settings = {
   doctor_notification_phone: string | null;
 };
 type PatientManagementAudit = {
-  id: number; patient_id: string; actor_clerk_user_id: string;
+  id: number; patient_id: string; actor_id: string;
   action: "profile_updated" | "history_exported"; created_at: string;
 };
 type AppointmentAuditEvent = {
@@ -53,35 +53,35 @@ type NotificationOutbox = {
   created_at: string;
 };
 type StaffAccount = {
-  clerk_user_id: string; display_name: string; role: "secretary"; is_active: boolean;
-  created_by_clerk_user_id: string; updated_by_clerk_user_id: string;
+  id: string; phone: string | null; display_name: string; role: "doctor" | "nurse" | "secretary"; is_active: boolean; is_owner: boolean;
+  created_by: string; updated_by: string;
   created_at: string; updated_at: string;
 };
 type AppointmentRescheduleAudit = {
-  id: number; appointment_id: string; actor_clerk_user_id: string;
+  id: number; appointment_id: string; actor_id: string;
   old_date: string; old_start_time: string; old_end_time: string;
   new_date: string; new_start_time: string; new_end_time: string;
   created_at: string;
 };
 type ManualBookingAudit = {
   id: number; appointment_id: string; patient_id: string;
-  actor_clerk_user_id: string; created_at: string;
+  actor_id: string; created_at: string;
 };
 type StaffAuditLog = {
-  id: number; actor_clerk_user_id: string; target_clerk_user_id: string;
+  id: number; actor_id: string; target_id: string;
   action: "staff_added" | "staff_enabled" | "staff_disabled" | "staff_updated";
   created_at: string;
 };
 export type Database = {
   clinic: {
     Tables: {
-      patient_management_audit: Table<PatientManagementAudit, "patient_id" | "actor_clerk_user_id" | "action">;
+      patient_management_audit: Table<PatientManagementAudit, "patient_id" | "actor_id" | "action">;
       appointment_audit_events: Table<AppointmentAuditEvent, "appointment_id" | "patient_id" | "actor" | "event_type">;
       notification_outbox: Table<NotificationOutbox, "audit_event_id" | "appointment_id" | "event_type" | "destination_email" | "payload">;
-      staff_accounts: Table<StaffAccount, "clerk_user_id" | "display_name" | "created_by_clerk_user_id" | "updated_by_clerk_user_id">;
-      appointment_reschedule_audit: Table<AppointmentRescheduleAudit, "appointment_id" | "actor_clerk_user_id" | "old_date" | "old_start_time" | "old_end_time" | "new_date" | "new_start_time" | "new_end_time">;
-      manual_booking_audit: Table<ManualBookingAudit, "appointment_id" | "patient_id" | "actor_clerk_user_id">;
-      staff_audit_log: Table<StaffAuditLog, "actor_clerk_user_id" | "target_clerk_user_id" | "action">;
+      staff_accounts: Table<StaffAccount, "phone" | "display_name" | "created_by" | "updated_by">;
+      appointment_reschedule_audit: Table<AppointmentRescheduleAudit, "appointment_id" | "actor_id" | "old_date" | "old_start_time" | "old_end_time" | "new_date" | "new_start_time" | "new_end_time">;
+      manual_booking_audit: Table<ManualBookingAudit, "appointment_id" | "patient_id" | "actor_id">;
+      staff_audit_log: Table<StaffAuditLog, "actor_id" | "target_id" | "action">;
       patients: Table<Patient, "phone">;
       availability: Table<{ id: string; day_of_week: number; start_time: string; end_time: string; slot_duration_minutes: number; is_active: boolean; created_at: string }, "day_of_week" | "start_time" | "end_time">;
       blocked_dates: Table<{ id: string; date: string; is_full_day: boolean; start_time: string | null; end_time: string | null; reason: string | null; created_at: string }, "date">;
@@ -96,8 +96,9 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      bootstrap_clinic_owner: { Args: { p_phone: string; p_display_name: string }; Returns: string };
       update_staff_appointment_status: { Args: {
-        p_appointment_id: string; p_actor_clerk_user_id: string; p_status: string;
+        p_appointment_id: string; p_actor_id: string; p_status: string;
       }; Returns: string };
       claim_notification_outbox: { Args: { p_limit?: number; p_appointment_id?: string | null }; Returns: {
         id: string; claim_token: string; event_type: string; destination_email: string;
@@ -108,15 +109,15 @@ export type Database = {
         p_provider_message_id?: string | null; p_error?: string | null;
       }; Returns: boolean };
       update_staff_patient_profile: { Args: {
-        p_actor_clerk_user_id: string; p_patient_id: string;
+        p_actor_id: string; p_patient_id: string;
         p_expected_updated_at: string; p_name: string; p_email: string;
       }; Returns: Json };
       reschedule_staff_appointment: { Args: {
-        p_appointment_id: string; p_actor_clerk_user_id: string;
+        p_appointment_id: string; p_actor_id: string;
         p_expected_date: string; p_expected_start_time: string; p_expected_end_time: string;
         p_date: string; p_start_time: string; p_end_time: string;
       }; Returns: Json };
-      create_staff_appointment: { Args: { p_actor_clerk_user_id: string; p_phone: string; p_patient_name: string; p_date: string; p_start_time: string; p_end_time: string; p_reason: string | null }; Returns: string };
+      create_staff_appointment: { Args: { p_actor_id: string; p_phone: string; p_patient_name: string; p_date: string; p_start_time: string; p_end_time: string; p_reason: string | null }; Returns: string };
       get_dashboard_stats: { Args: Record<string, never>; Returns: { total_appointments: number; completed_appointments: number; cancelled_appointments: number; no_show_appointments: number; cancellation_rate: number | null; total_revenue: number; revenue_this_month: number; average_rating: number | null; reviews_count: number }[] };
       create_patient_appointment: { Args: { p_patient_id: string; p_date: string; p_start_time: string; p_end_time: string; p_reason?: string | null; p_patient_name?: string | null; p_patient_email?: string | null }; Returns: string };
       cancel_patient_appointment: { Args: { p_appointment_id: string; p_patient_id: string }; Returns: string };

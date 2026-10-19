@@ -1,63 +1,61 @@
 "use server";
 
-import { clerkClient } from "@clerk/nextjs/server";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { getClinicActor } from "@/lib/auth/clinic-actor";
 import { createServiceClient } from "@/lib/supabase/server";
-import { isAuthorizedDoctor } from "@/lib/auth/doctor-access";
+import { PHONE_PATTERN } from "@/lib/auth/constants";
+import type { ClinicRole } from "@/lib/auth/permissions";
 
-const clerkId = z.string().regex(/^user_[A-Za-z0-9]{8,}$/).max(128);
 const createSchema = z.object({
-  clerkUserId: clerkId,
+  phone: z.string().max(32).transform(value => value.replace(/[\s()-]/g, "")).pipe(z.string().regex(PHONE_PATTERN)),
   displayName: z.string().trim().min(2).max(100),
-});
-const toggleSchema = z.object({ clerkUserId: clerkId, isActive: z.boolean() });
+  role: z.enum(["doctor", "nurse", "secretary"]),
+}).strict();
+const toggleSchema = z.object({ id: z.string().min(1).max(128), isActive: z.boolean() }).strict();
+export type StaffRecord = {
+  id: string; phone: string | null; display_name: string; role: ClinicRole;
+  is_active: boolean; is_owner: boolean; created_at: string;
+};
+type StaffActionError = "forbidden" | "invalid_input" | "already_exists" | "not_found" | "unknown";
 export type StaffActionResult =
   | { success: true }
-  | { success: false; error: "forbidden" | "invalid_input" | "user_not_found" | "already_exists" | "not_found" | "unknown" };
+  | { success: false; error: StaffActionError };
 
-export async function addSecretary(input: z.infer<typeof createSchema>): Promise<StaffActionResult> {
+export async function addStaff(input: z.input<typeof createSchema>): Promise<
+  { success: true; staff: StaffRecord } | { success: false; error: StaffActionError }
+> {
   const actor = await getClinicActor();
   if (!actor || actor.role !== "doctor") return { success: false, error: "forbidden" };
   const parsed = createSchema.safeParse(input);
-  if (!parsed.success || isAuthorizedDoctor(parsed.data.clerkUserId)) {
+  if (!parsed.success || parsed.data.phone === actor.phone) {
     return { success: false, error: "invalid_input" };
   }
-  // Only existing Clerk identities can be granted staff access.
-  try {
-    const client = await clerkClient();
-    const identity = await client.users.getUser(parsed.data.clerkUserId);
-    if (!identity || identity.banned || identity.locked) return { success: false, error: "user_not_found" };
-  } catch (error: unknown) {
-    const status = (error as { status?: number } | null)?.status;
-    return { success: false, error: status === 404 ? "user_not_found" : "unknown" };
-  }
-
-  const { error } = await createServiceClient().from("staff_accounts").insert({
-    clerk_user_id: parsed.data.clerkUserId,
+  // Approval is saved before the employee signs in; OTP must still verify their number.
+  const { data, error } = await createServiceClient().from("staff_accounts").insert({
+    phone: parsed.data.phone,
     display_name: parsed.data.displayName,
-    role: "secretary", is_active: true,
-    created_by_clerk_user_id: actor.clerkUserId,
-    updated_by_clerk_user_id: actor.clerkUserId,
-  });
+    role: parsed.data.role, is_active: true, is_owner: false,
+    created_by: actor.id,
+    updated_by: actor.id,
+  }).select("id,phone,display_name,role,is_active,is_owner,created_at").single();
   if (error) return { success: false, error: error.code === "23505" ? "already_exists" : "unknown" };
+  if (!data) return { success: false, error: "unknown" };
   revalidatePath("/dashboard/staff");
-  return { success: true };
+  return { success: true, staff: data };
 }
 
-export async function setSecretaryActive(input: z.infer<typeof toggleSchema>): Promise<StaffActionResult> {
+export async function setStaffActive(input: z.infer<typeof toggleSchema>): Promise<StaffActionResult> {
   const actor = await getClinicActor();
   if (!actor || actor.role !== "doctor") return { success: false, error: "forbidden" };
   const parsed = toggleSchema.safeParse(input);
-  if (!parsed.success || isAuthorizedDoctor(parsed.data.clerkUserId)) {
+  if (!parsed.success || parsed.data.id === actor.id) {
     return { success: false, error: "invalid_input" };
   }
   const { data, error } = await createServiceClient().from("staff_accounts")
-    .update({ is_active: parsed.data.isActive, updated_by_clerk_user_id: actor.clerkUserId })
-    .eq("clerk_user_id", parsed.data.clerkUserId)
-    .eq("role", "secretary")
-    .select("clerk_user_id").maybeSingle();
+    .update({ is_active: parsed.data.isActive, updated_by: actor.id })
+    .eq("id", parsed.data.id).eq("is_owner", false).not("phone", "is", null)
+    .select("id").maybeSingle();
   if (error) return { success: false, error: "unknown" };
   if (!data) return { success: false, error: "not_found" };
   revalidatePath("/dashboard/staff");

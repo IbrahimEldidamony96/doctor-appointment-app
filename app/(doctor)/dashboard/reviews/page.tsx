@@ -1,13 +1,10 @@
-import { auth } from "@clerk/nextjs/server";
-import { isAuthorizedDoctor } from "@/lib/auth/doctor-access";
+import { requireClinicPermission } from "@/lib/auth/clinic-actor";
 import { redirect } from "next/navigation";
 import { createServiceClient } from "@/lib/supabase/server";
 import { ReviewVisibilityToggle } from "@/components/doctor/review-visibility-toggle";
 
 export default async function DoctorReviewsPage() {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
-  if (!isAuthorizedDoctor(userId)) redirect("/doctor-access-denied");
+  if (!await requireClinicPermission("reviews:manage")) redirect("/doctor-access-denied");
 
   const supabase = createServiceClient();
   const { data: reviews } = await supabase

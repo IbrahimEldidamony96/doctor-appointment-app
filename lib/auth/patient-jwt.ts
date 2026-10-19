@@ -3,8 +3,8 @@ import { SignJWT, jwtVerify } from "jose";
 import { PATIENT_ID_PATTERN, PHONE_PATTERN, PATIENT_SESSION_MAX_AGE_SECONDS } from "./constants";
 import { getAuthSecret } from "./secrets";
 
-const ISSUER = "clinic-patient-auth";
-const AUDIENCE = "clinic-patient";
+const ISSUER = "clinic-whatsapp-auth";
+const AUDIENCE = "clinic-user";
 
 export type PatientJwtPayload = { patientId: string; phone: string };
 

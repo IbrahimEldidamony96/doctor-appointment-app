@@ -14,7 +14,7 @@ const links: { href: string; label: string; icon: typeof LayoutDashboard; permis
   { href: "/dashboard/reviews", label: "التقييمات", icon: MessageSquareText, permission: "reviews:manage" },
   { href: "/dashboard/stats", label: "الإحصاءات", icon: ChartColumnIncreasing, permission: "stats:view" },
   { href: "/dashboard/settings", label: "الإعدادات", icon: Settings2, permission: "settings:manage" },
-  { href: "/dashboard/staff", label: "السكرتارية", icon: Users, permission: "staff:manage" },
+  { href: "/dashboard/staff", label: "فريق العيادة", icon: Users, permission: "staff:manage" },
   { href: "/dashboard/operations", label: "سجل العمليات", icon: Activity, permission: "operations:view" },
 ];
 export function DashboardNav({ role }: { role: ClinicRole }) {

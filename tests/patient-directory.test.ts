@@ -37,7 +37,7 @@ function fixture(count: number, rows: PatientSearchRow[] = [patient], fail: "cou
     requests,
     get clientCreations() { return clientCreations; },
     async load(input: unknown = { query: "", page: 1 }, actor: ClinicActor | null = {
-      clerkUserId: "user_directorydoctor", role: "doctor",
+      id: "c65ecc68-9e58-4c81-86c3-d7c371e930a5", phone: "+201234567892", role: "doctor", isOwner: true,
     }) {
       return searchPatientDirectory(actor, input, () => { clientCreations++; return db; });
     },
@@ -129,7 +129,9 @@ test("every lookup checks the current actor before validation or creating a serv
   assert.deepEqual(await source.load({ query: "" }, null), { success: false, error: "forbidden" });
   assert.equal(source.clientCreations, 0);
   assert.equal(source.requests.length, 0);
-  const secretary: ClinicActor = { clerkUserId: "user_directorysecretary", role: "secretary" };
+  const secretary: ClinicActor = {
+    id: "e03f5fa9-8bd5-42c1-a034-c8bff8defa97", phone: "+201234567893", role: "secretary", isOwner: false,
+  };
   assert.equal((await source.load({ query: "", page: 1 }, secretary)).success, true);
   assert.equal(source.requests.length, 2);
   assert.deepEqual(await source.load({ query: "", page: 1 }, null), { success: false, error: "forbidden" });

@@ -4,6 +4,8 @@
 **Base:** `feature/phase2-05-patient-management` (stacked on PR #6 → #5 → #4 → #3 → #2 → #1).  
 **State:** Source code pushed only; no live migration applied and no successful TypeScript/Next.js build or PGlite run observed.
 
+> **Historical phase handoff:** Clerk and separate patient-session references below describe this phase's original identity model. Current sign-in uses shared WhatsApp OTP; legacy staff records and audit references are retained during migration. See [WhatsApp authentication setup](WHATSAPP_AUTH.md) for current setup and permissions.
+
 ## What this step delivers
 
 - New migration `20261017130000_appointment_audit_outbox.sql` adds RLS-protected `clinic.appointment_audit_events` and `clinic.notification_outbox` (both service-role only; the audit table is insert-only for the application service role).

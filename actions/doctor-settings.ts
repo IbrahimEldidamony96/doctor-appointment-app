@@ -2,8 +2,7 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { auth } from "@clerk/nextjs/server";
-import { isAuthorizedDoctor } from "@/lib/auth/doctor-access";
+import { requireClinicPermission } from "@/lib/auth/clinic-actor";
 import { createServiceClient } from "@/lib/supabase/server";
 
 const settingsSchema = z.object({
@@ -20,8 +19,7 @@ const settingsSchema = z.object({
 });
 
 export async function updateSettings(input: z.infer<typeof settingsSchema>) {
-  const { userId } = await auth();
-  if (!isAuthorizedDoctor(userId)) return { success: false as const, error: "unauthenticated" as const };
+  if (!await requireClinicPermission("settings:manage")) return { success: false as const, error: "unauthenticated" as const };
 
   const parsed = settingsSchema.safeParse(input);
   if (!parsed.success) return { success: false as const, error: "invalid_input" as const };

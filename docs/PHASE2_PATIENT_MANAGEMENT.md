@@ -4,6 +4,8 @@
 **Base:** `feature/phase2-04-calendar-dashboard` (stacked PR sequence: #1 → #2 → #3 → #4 → #5).  
 **Status:** Source code committed, not deployed. No live data was read or changed. Full build and tests are not yet verified.
 
+> **Historical phase handoff:** References below to Clerk and secretary-only membership describe the original implementation. Current access uses shared WhatsApp OTP and active doctor, nurse or secretary membership. Use [WhatsApp authentication setup](WHATSAPP_AUTH.md) for current setup and permissions; retain this document as implementation history.
+
 ## Features
 
 1. `/dashboard/patients` is available to authorized doctor/active secretary accounts and loads the first page of all non-deleted patients automatically. The directory defaults to 10 patients per page, with 25/50 also selectable. Staff can filter by name or international mobile prefix, filter patients with or without a recorded name, and sort by registration date, name, or phone in either direction. Every request checks the current Clerk/session role, validates search/filter/sort/page-size inputs, and uses a bounded server-side page with deterministic ID tie-breaking. Search text stays in an authenticated POST action instead of URL/browser history. Only patient ID, name, phone, and registration date are returned.

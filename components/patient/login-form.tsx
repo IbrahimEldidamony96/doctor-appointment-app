@@ -6,12 +6,12 @@ import { ArrowLeft, LockKeyhole, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { safePatientRedirect } from "@/lib/auth/safe-redirect";
+import { safeLoginRedirect } from "@/lib/auth/safe-redirect";
 
 export function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const redirectTo = safePatientRedirect(params.get("redirect"));
+  const redirectTo = safeLoginRedirect(params.get("redirect"), "");
   const [phone, setPhone] = useState("+20");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -28,7 +28,9 @@ export function LoginForm() {
       try {
         const res = await fetch("/api/otp/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone: normalized }) });
         if (res.ok) {
-          router.push(`/verify?phone=${encodeURIComponent(normalized)}&redirect=${encodeURIComponent(redirectTo)}`);
+          const query = new URLSearchParams({ phone: normalized });
+          if (redirectTo) query.set("redirect", redirectTo);
+          router.push(`/verify?${query.toString()}`);
           return;
         }
         const body = await res.json().catch(() => null);

@@ -1,5 +1,6 @@
 import "server-only";
 import { createServiceClient } from "@/lib/supabase/server";
+import { hasPermission, type ClinicRole } from "./auth/permissions";
 import type { CalendarAppointment, CalendarStatus } from "./clinic-calendar";
 
 const PAGE_SIZE = 500;
@@ -13,14 +14,16 @@ export type CalendarBlock = {
   end_time: string | null; reason: string | null;
 };
 
-/** Caller MUST authorize calendar:view before reading this service-role data. */
+/** The caller supplies the current database role; clinical details stay server-only for limited staff. */
 export async function getCalendarData(
-  start: string, end: string, status: CalendarStatus,
+  start: string, end: string, status: CalendarStatus, role: ClinicRole | null,
 ): Promise<{
   appointments: CalendarAppointment[];
   availability: CalendarSchedule[];
   blocked: CalendarBlock[];
 }> {
+  if (!hasPermission(role, "calendar:view")) throw new Error("Clinic calendar access denied");
+  const canViewClinicalDetails = hasPermission(role, "patients:manage");
   const client = createServiceClient();
   const [schedule, blocks] = await Promise.all([
     client.from("availability")
@@ -50,7 +53,7 @@ export async function getCalendarData(
       start_time: item.start_time,
       end_time: item.end_time,
       status: item.status,
-      reason_for_visit: item.reason_for_visit,
+      reason_for_visit: canViewClinicalDetails ? item.reason_for_visit : null,
       patient_name: item.patients?.name ?? null,
       patient_phone: item.patients?.phone ?? "",
     })));

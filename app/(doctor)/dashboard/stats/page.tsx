@@ -1,5 +1,4 @@
-import { auth } from "@clerk/nextjs/server";
-import { isAuthorizedDoctor } from "@/lib/auth/doctor-access";
+import { requireClinicPermission } from "@/lib/auth/clinic-actor";
 import { redirect } from "next/navigation";
 import { createServiceClient } from "@/lib/supabase/server";
 
@@ -16,9 +15,7 @@ type Stats = {
 };
 
 export default async function StatsPage() {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
-  if (!isAuthorizedDoctor(userId)) redirect("/doctor-access-denied");
+  if (!await requireClinicPermission("stats:view")) redirect("/doctor-access-denied");
 
   const supabase = createServiceClient();
   // Cast until `supabase gen types` is re-run after adding this function.

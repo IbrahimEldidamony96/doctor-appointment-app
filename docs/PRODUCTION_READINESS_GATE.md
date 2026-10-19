@@ -2,7 +2,9 @@
 
 This gate is intentionally **NOT approved**. Code in GitHub is not a successful build, a deployed migration, or an end-to-end provider test.
 
-## Current verified observations
+For current authentication setup, use [WhatsApp authentication setup](WHATSAPP_AUTH.md). Clerk has been removed; shared WhatsApp sessions and active phone-based staff permissions replace it. The observations below are a historical Phase 2 snapshot and do not establish the current local build, database or deployment state.
+
+## Historical Phase 2 observations
 - Source of truth for all Phase 2 changes: branch `feature/phase2-06-audit-notification-outbox`; PRs #1–#7 are stacked and open in draft.
 - GitHub Actions runs for Phase 1 failed before tests ran; no successful CI evidence.
 - Connected Supabase project **doctor-appointment** (`njdhqxvkubmktqbnasib`) has migrations `001`–`006` and `20261004162647` through `20261004172525`, but **none of the Phase 2 migrations**.
@@ -18,7 +20,7 @@ This gate is intentionally **NOT approved**. Code in GitHub is not a successful 
 - [ ] `npm run build`
 - [ ] `node --conditions=react-server --import tsx --test tests/*.test.ts` after isolated test tools install
 - [ ] Create a **disposable local Supabase instance or authorized second Free project**, apply Phase 2 migrations in order, verify schema, privilege grants and RLS.
-- [ ] Integration tests: Clerk doctor and staff authorization, patient OTP WhatsApp, atomic booking/overlap, reschedule, Paymob sandbox, Resend and outbox retry/ack, Cairo DST.
+- [ ] Integration tests: shared WhatsApp OTP for patients/doctors/nurses/secretaries, protected first-owner bootstrap, current staff authorization, atomic booking/overlap, reschedule, Paymob sandbox, Resend and outbox retry/ack, Cairo DST.
 - [ ] Inspect error logs, provider delivery and cost limits. Validate failure/recovery and privacy.
 - [ ] Review and merge stacked PRs in dependency order only after all above checks succeed.
 - [ ] Re-run build/deployment smoke tests on merged main before enabling production traffic.

@@ -232,7 +232,7 @@ revoke all on function clinic.finish_notification_outbox(uuid,uuid,text,text,tex
   from public,anon,authenticated;
 grant execute on function clinic.capture_appointment_event() to service_role;
 grant execute on function clinic.update_staff_appointment_status(uuid,text,text) to service_role;
-grant execute on function clinic.claim_notification_outbox(integer) to service_role;
+grant execute on function clinic.claim_notification_outbox(integer,uuid) to service_role;
 grant execute on function clinic.finish_notification_outbox(uuid,uuid,text,text,text) to service_role;
 notify pgrst,'reload schema';
 

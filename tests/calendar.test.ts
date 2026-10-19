@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { getCalendarData } from "../lib/calendar-data";
 import {
   calendarDateInRange,
   calendarHref,
@@ -82,4 +83,48 @@ test("grouping sorts appointments per day without reordering the input list", ()
   assert.deepEqual(grouped.get("2026-10-18")?.map(row => row.id), ["c"]);
   assert.equal(grouped.has("2026-10-20"), false);
   assert.deepEqual(input, before);
+});
+
+test("calendar data removes clinical reasons before returning appointments to limited staff", async () => {
+  const previousUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const previousKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  process.env.NEXT_PUBLIC_SUPABASE_URL = "https://calendar-privacy-tests.invalid";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "test-service-role-key";
+  const originalFetch = globalThis.fetch;
+  const reason = "Private clinical history";
+  let requests = 0;
+  globalThis.fetch = async (input, init) => {
+    const url = new URL(new Request(input, init).url);
+    assert.equal(url.origin, "https://calendar-privacy-tests.invalid");
+    requests++;
+    if (url.pathname === "/rest/v1/availability" || url.pathname === "/rest/v1/blocked_dates") {
+      return Response.json([]);
+    }
+    assert.equal(url.pathname, "/rest/v1/appointments");
+    return Response.json([{
+      id: "00000000-0000-4000-8000-000000000123",
+      appointment_date: TODAY, start_time: "09:00:00", end_time: "09:30:00",
+      status: "confirmed", reason_for_visit: reason,
+      patients: { name: "Test patient", phone: "+201234567891" },
+    }]);
+  };
+  try {
+    await assert.rejects(getCalendarData(TODAY, TODAY, "all", null), /access denied/);
+    assert.equal(requests, 0, "unauthenticated callers never query service-role data");
+    for (const role of ["doctor", "nurse", "secretary"] as const) {
+      const calendar = await getCalendarData(TODAY, TODAY, "all", role);
+      const appointment = calendar.appointments[0];
+      assert.equal(appointment.patient_phone, "+201234567891", "booking contact details remain available");
+      assert.equal(appointment.reason_for_visit, role === "doctor" ? reason : null);
+      assert.equal(JSON.stringify(calendar).includes(reason), role === "doctor",
+        "the payload passed to CalendarBoard must not contain unauthorized clinical text");
+    }
+    assert.equal(requests, 9);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (previousUrl === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    else process.env.NEXT_PUBLIC_SUPABASE_URL = previousUrl;
+    if (previousKey === undefined) delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    else process.env.SUPABASE_SERVICE_ROLE_KEY = previousKey;
+  }
 });

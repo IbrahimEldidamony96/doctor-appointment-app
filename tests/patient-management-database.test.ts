@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createTestDatabase } from "./helpers/database";
+import { createTestDatabase, seedStaff } from "./helpers/database";
 
 const doctor = "user_doctor123456789";
 const denied = (code: string) => (error: unknown) =>
@@ -9,6 +9,7 @@ const denied = (code: string) => (error: unknown) =>
 test("profile edits use optimistic locking and audit the actor atomically", async () => {
   const db = await createTestDatabase();
   try {
+    await seedStaff(db, doctor, 'doctor');
     const { rows } = await db.query<{ id: string; updated_at: string }>(
       "insert into clinic.patients(phone,name) values('+201234567891','Original') returning id,updated_at"
     );
@@ -26,9 +27,9 @@ test("profile edits use optimistic locking and audit the actor atomically", asyn
     const saved = await db.query<{ name: string; email: string }>(
       "select name,email from clinic.patients where id=$1", [id]);
     assert.deepEqual(saved.rows[0], { name: "Corrected", email: "test@example.com" });
-    const audit = await db.query<{ action: string; actor_clerk_user_id: string }>(
-      "select action,actor_clerk_user_id from clinic.patient_management_audit");
-    assert.deepEqual(audit.rows, [{ action: "profile_updated", actor_clerk_user_id: doctor }]);
+    const audit = await db.query<{ action: string; actor_id: string }>(
+      "select action,actor_id from clinic.patient_management_audit");
+    assert.deepEqual(audit.rows, [{ action: "profile_updated", actor_id: doctor }]);
 
     const invalid = (await update(first.updated_at!, "x")).rows[0].result;
     assert.deepEqual(invalid, { success: false, reason: "invalid_input" });
@@ -52,7 +53,7 @@ test("only service role can call profile RPC or insert audit records", async () 
     );
     await assert.rejects(db.query("select * from clinic.patient_management_audit"), denied("42501"));
     await assert.rejects(db.query(
-      "insert into clinic.patient_management_audit(patient_id,actor_clerk_user_id,action) values($1,$2,'history_exported')",
+      "insert into clinic.patient_management_audit(patient_id,actor_id,action) values($1,$2,'history_exported')",
       [id,doctor]), denied("42501"));
     await db.exec("reset role");
     const privilege = await db.query<{ allowed: boolean }>(

@@ -7,18 +7,18 @@ import { ArrowLeft, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { safePatientRedirect } from "@/lib/auth/safe-redirect";
+import { safeLoginRedirect } from "@/lib/auth/safe-redirect";
 
 export function VerifyForm() {
   const router = useRouter();
   const params = useSearchParams();
   const phone = params.get("phone") ?? "";
-  const redirectTo = safePatientRedirect(params.get("redirect"));
+  const redirectTo = safeLoginRedirect(params.get("redirect"), "");
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const loginUrl = `/login?redirect=${encodeURIComponent(redirectTo)}`;
+  const loginUrl = redirectTo ? `/login?redirect=${encodeURIComponent(redirectTo)}` : "/login";
 
   function verify(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -27,9 +27,13 @@ export function VerifyForm() {
     if (!/^\+[1-9]\d{7,14}$/.test(phone)) { setError("رقم الهاتف غير صالح. ارجع وسجّل تاني."); return; }
     startTransition(async () => {
       try {
-        const res = await fetch("/api/otp/verify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone, code }) });
-        if (res.ok) { router.replace(redirectTo); router.refresh(); return; }
+        const res = await fetch("/api/otp/verify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone, code, redirectTo }) });
         const body = await res.json().catch(() => null);
+        if (res.ok && body?.success) {
+          const destination = body.redirectTo === "/doctor-access-denied"
+            ? "/doctor-access-denied" : safeLoginRedirect(body.redirectTo);
+          router.replace(destination); router.refresh(); return;
+        }
         const messages: Record<string, string> = { expired: "انتهت صلاحية الكود. اطلب كود جديد.", invalid_code: "الكود غير صحيح، جرّب تاني.", too_many_attempts: "محاولات كثيرة. اطلب كود جديد.", not_found: "الكود غير موجود. اطلب واحد جديد.", invalid_input: "البيانات غير صحيحة." };
         setError(messages[body?.error] ?? "حصل خطأ أثناء التحقق، حاول تاني.");
       } catch { setError("تعذر الاتصال بالسيرفر. حاول تاني."); }

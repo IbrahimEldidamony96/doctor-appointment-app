@@ -36,7 +36,7 @@ export async function createManualBooking(input: CreateManualBookingInput): Prom
   // One database transaction: create/find patient, validate and create slot, record
   // staff actor. Existing account details are never overwritten by the receptionist.
   const { data, error } = await createServiceClient().rpc("create_staff_appointment", {
-    p_actor_clerk_user_id: actor.clerkUserId,
+    p_actor_id: actor.id,
     p_phone: phone,
     p_patient_name: patientName,
     p_date: date,

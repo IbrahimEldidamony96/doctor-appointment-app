@@ -5,8 +5,14 @@ import { verifyOtp } from "@/lib/auth/otp";
 import { signPatientJwt } from "@/lib/auth/patient-jwt";
 import { PATIENT_SESSION_COOKIE, PATIENT_SESSION_MAX_AGE_SECONDS, PHONE_PATTERN } from "@/lib/auth/constants";
 import { createServiceClient } from "@/lib/supabase/server";
+import { getClinicActorForIdentity } from "@/lib/auth/clinic-actor";
+import { getLoginDestination } from "@/lib/auth/safe-redirect";
 
-const schema = z.object({ phone: z.string().regex(PHONE_PATTERN), code: z.string().regex(/^\d{6}$/) });
+const schema = z.object({
+  phone: z.string().regex(PHONE_PATTERN),
+  code: z.string().regex(/^\d{6}$/),
+  redirectTo: z.string().max(2048).optional(),
+});
 
 export async function POST(req: NextRequest) {
   if (!req.headers.get("content-type")?.toLowerCase().startsWith("application/json")) {
@@ -25,9 +31,10 @@ export async function POST(req: NextRequest) {
     if (!result.success) return NextResponse.json({ error: result.reason }, { status: 401 });
 
     const supabase = createServiceClient();
-    let { data: patient, error: lookupError } = await supabase
+    const { data: existingPatient, error: lookupError } = await supabase
       .from("patients").select("id, phone").eq("phone", phone).is("deleted_at", null).maybeSingle();
     if (lookupError) throw lookupError;
+    let patient = existingPatient;
     let isNewPatient = false;
     if (!patient) {
       const created = await supabase.from("patients").insert({ phone }).select("id, phone").single();
@@ -40,12 +47,15 @@ export async function POST(req: NextRequest) {
         patient = retried.data;
       } else throw new Error("Patient creation failed");
     }
-    const jwt = await signPatientJwt({ patientId: patient.id, phone: patient.phone });
+    const identity = { patientId: patient.id, phone: patient.phone };
+    const actor = await getClinicActorForIdentity(identity);
+    const redirectTo = getLoginDestination(parsed.data.redirectTo, !!actor);
+    const jwt = await signPatientJwt(identity);
     (await cookies()).set(PATIENT_SESSION_COOKIE, jwt, {
       httpOnly: true, secure: process.env.NODE_ENV === "production",
       sameSite: "lax", path: "/", maxAge: PATIENT_SESSION_MAX_AGE_SECONDS,
     });
-    return NextResponse.json({ success: true, isNewPatient }, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({ success: true, isNewPatient, redirectTo }, { headers: { "Cache-Control": "no-store" } });
   } catch {
     return NextResponse.json({ error: "otp_service_unavailable" }, { status: 503 });
   }

@@ -4,6 +4,8 @@
 **Parent:** `feature/phase2-03-appointment-reschedule` (PR #4), on top of PRs #3, #2 and #1.  
 **State:** Implementation source committed. Build/tests not executed in a working CI environment. No deployment or live Supabase changes.
 
+> **Historical phase handoff:** References below to Clerk and doctor/secretary access describe the original implementation. Current calendar access uses shared WhatsApp OTP and an active doctor, nurse or secretary membership. See [WhatsApp authentication setup](WHATSAPP_AUTH.md) for current setup and permissions.
+
 ## Delivered
 
 - **URL:** `/dashboard/calendar`; also linked from the doctor/secretary sidebar and dashboard overview.

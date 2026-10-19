@@ -21,7 +21,7 @@ export async function updateAppointmentStatus(appointmentId: string, status: Sta
   const supabase = createServiceClient();
   const { data, error } = await supabase.rpc("update_staff_appointment_status", {
     p_appointment_id: appointmentId,
-    p_actor_clerk_user_id: actor.clerkUserId,
+    p_actor_id: actor.id,
     p_status: status,
   });
   if (error) {

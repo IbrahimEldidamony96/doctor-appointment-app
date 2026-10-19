@@ -37,6 +37,8 @@ test("OTP transactions enforce cooldown, attempt limits, expiry and one-time use
     assert.equal((await issue()).success, true);
     const simultaneous = await Promise.all([verify(), verify()]);
     assert.equal(simultaneous.filter((result) => result.success).length, 1);
+    const members = await db.query<{ count: number }>("select count(*)::int as count from clinic.staff_accounts");
+    assert.equal(members.rows[0].count, 0, "verifying a patient number never grants clinic membership");
     assert.deepEqual(await verify(), { success: false, reason: "not_found" });
     // Verification retains the send history: it cannot bypass the cooldown.
     assert.equal((await issue()).reason, "too_many_requests");

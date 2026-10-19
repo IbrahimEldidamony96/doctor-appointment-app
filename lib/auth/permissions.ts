@@ -1,5 +1,5 @@
 /** Pure role policy: used by backend guards and UI projection, never client claims. */
-export type ClinicRole = "doctor" | "secretary";
+export type ClinicRole = "doctor" | "nurse" | "secretary";
 export type ClinicPermission =
   | "dashboard:view"
   | "appointments:view"
@@ -26,7 +26,7 @@ const secretaryPermissions: ReadonlySet<ClinicPermission> = new Set([
 
 export function hasPermission(role: ClinicRole | null, permission: ClinicPermission): boolean {
   if (role === "doctor") return true;
-  return role === "secretary" && secretaryPermissions.has(permission);
+  return (role === "nurse" || role === "secretary") && secretaryPermissions.has(permission);
 }
 
 export function canChangeAppointmentStatus(

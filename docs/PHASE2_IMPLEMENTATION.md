@@ -1,43 +1,58 @@
-# Phase 2 implementation log
+# Phase 2 — Clinic team accounts and permissions
 
-## Step 1 — Secretary Accounts & RBAC
+The current implementation uses shared WhatsApp OTP authentication for patients and clinic staff. The original Phase 2 secretary implementation used Clerk IDs and a doctor allowlist; those instructions are historical and must not be used to configure the current app.
 
-**Branch:** `feature/phase2-01-secretary-rbac`  
-**Base:** Phase 1 `fix/phase-1-backend-integrity` (not `main`; PR #1 must be resolved first).  
-**Status:** Implemented in source code; not deployed or build-verified.
+## Current identity and authorization
 
-### Security design
+- Everyone signs in at `/login` and verifies the code at `/verify`. `/sign-in` redirects to the shared login with `/dashboard` as the requested destination.
+- The shared `clinic_session` cookie lasts 12 hours and carries verified identity, not a staff role. The environment variable remains `PATIENT_JWT_SECRET`.
+- `getClinicActor()` reads active membership by verified WhatsApp number on server requests. Pages and every mutation check current permissions; hiding a link is not authorization. Disabling an account removes its clinic access on the next guarded server request.
+- `proxy.ts` checks signed identity for clinic and protected patient routes. Dashboard layouts, individual page loaders and server actions apply role authorization. A patient session alone never grants clinic permissions.
+- Without an explicit permitted target, approved staff go to `/dashboard` and patients to `/book`. Permitted patient targets remain available to staff. A patient requesting a dashboard target reaches the access-denied page.
 
-- Clerk authenticates staff users. Authorized *doctor* identities still come from the pre-existing `DOCTOR_CLERK_USER_IDS` server allowlist; never grant `doctor` through a user-editable token, public metadata or the staff table.
-- A doctor authorizes an **existing** Clerk account by copying its `user_...` ID from Clerk Dashboard → Users and creating an active secretary membership at `/dashboard/staff`. No shared doctor credentials and no direct email/password collection in this app.
-- New `clinic.staff_accounts` table holds `clerk_user_id`, display name, fixed role `secretary`, activation state and provenance. All membership changes are recorded via a PostgreSQL trigger in `clinic.staff_audit_log`.
-- `clinic.staff_accounts` and `clinic.staff_audit_log` have RLS enabled; no anon/authenticated access. Only server-side Supabase service role is granted table privileges.
-- `getClinicActor()` checks the signed-in Clerk user on every server request, gives priority to the fixed doctor allowlist, and queries current active membership for non-doctor staff. It **fails closed** when the DB cannot be read; disabled users lose server access without waiting for a JWT refresh.
-- Secretary permissions: view dashboard and appointments; confirm/cancel appointments. They cannot mark visits completed/no-show, manage schedule, see revenue/stats, edit settings, moderate reviews or manage staff. These decisions are enforced in server actions/pages, **not only through hidden links**.
-- `proxy.ts` authenticates Clerk dashboard requests. Dashboard server layout and individual actions/pages perform role authorization. Doctor-only pages retain the existing allowlist guards.
+## Roles
 
-### Key changed files
+| Role | Permissions |
+| --- | --- |
+| Doctor | All clinic permissions, including adding staff and managing activation |
+| Nurse | Dashboard, appointments, calendar, patient search and limited history, manual booking, rescheduling, appointment confirmation and cancellation |
+| Secretary | The same restricted reception permissions as a nurse |
 
-`supabase/migrations/20261016180000_clinic_staff_rbac.sql`,
-`lib/auth/clinic-actor.ts`, `lib/auth/permissions.ts`,
-`actions/staff.ts`, `actions/doctor-appointments.ts`,
-`app/(doctor)/dashboard/staff/page.tsx`,
-`components/doctor/staff-manager.tsx`,
-`components/doctor/dashboard-nav.tsx`,
-`app/(doctor)/dashboard/layout.tsx`,
-`lib/supabase/database.types.ts`,
-`tests/rbac.test.ts`, `tests/staff-database.test.ts`.
+Nurses and secretaries cannot mark completed/no-show visits, manage schedules/reviews/settings/staff, view statistics or operation logs, edit/export patient profiles, or view doctor-only clinical details.
 
-### Before using in a clinic
+The first doctor is the protected owner. Doctors can add team members by WhatsApp number and select `doctor`, `nurse` or `secretary` at `/dashboard/staff`. Owner accounts and the current account cannot be disabled through staff management. Legacy accounts without a WhatsApp number cannot be activated.
 
-1. Apply all previous migrations followed by `20261016180000_clinic_staff_rbac.sql` to a staging database. The assistant **has not** modified your hosted DB.
-2. Ensure Clerk doctor allowlist and Clerk instance configuration are correct; keep the Clerk secret key private.
-3. Create separate Clerk logins for staff, then add the existing Clerk User IDs at `/dashboard/staff`.
-4. Manually verify staff can view/confirm/cancel bookings but cannot access `/dashboard/settings`, `/dashboard/stats`, `/dashboard/availability`, `/dashboard/staff` or call doctor-only server actions.
-5. Disable an active secretary account while logged in on another browser; assert the next server request is rejected.
-6. Run `npm ci`, `npx tsc --noEmit`, `npm run build`; run PGlite tests using installed `tsx` and `@electric-sql/pglite` dev tools. The GitHub Actions runner has previously failed before starting any step, so no successful runtime verification is asserted.
-7. Enable MFA for doctor/staff in Clerk; audit privileges, limit personal data displayed at reception, and ensure medical data privacy controls.
+## Migration and first owner
 
-### Next step
+Apply all SQL files in `supabase/migrations/` in order, including [`20261018225747_whatsapp_staff_auth.sql`](../supabase/migrations/20261018225747_whatsapp_staff_auth.sql), **before deploying this app version**. The source changes do not apply a hosted database migration or deploy the app.
 
-**Step 2 — Manual Booking:** create staff-only service actions to locate/register patients by E.164 mobile number and book through the same serialized availability checks, with doctor and secretary role guards, audit trail, and a mobile-friendly dashboard booking form. No manual-booking code is represented as done in this step.
+The migration disables legacy staff records and retains their old identity references and audit history. They are not automatically trusted by phone number. After the owner signs in, re-add approved staff with their WhatsApp numbers at `/dashboard/staff`.
+
+Create the first owner from a private terminal:
+
+```sh
+npm run bootstrap:doctor -- +201xxxxxxxxx "Doctor name"
+```
+
+The helper calls the service-role-only `clinic.bootstrap_clinic_owner(p_phone, p_display_name)` RPC. The first-owner operation is serialized and refuses to create another owner once one exists. It approves the number; the owner still has to complete WhatsApp OTP sign-in. There is no public owner-registration page or role selection at login.
+
+See [WhatsApp authentication setup](WHATSAPP_AUTH.md) for required environment variables, migration order, bootstrap and migration verification.
+
+## Implementation map
+
+- `lib/auth/clinic-actor.ts`: verified identity to current active membership.
+- `lib/auth/permissions.ts`: doctor, nurse and secretary permission policy.
+- `lib/auth/patient-jwt.ts`, `get-patient-session.ts`, `constants.ts`: shared signed identity and cookie.
+- `lib/auth/safe-redirect.ts`: permitted destinations and role defaults.
+- `app/api/otp/verify/route.ts`: verified OTP, shared session and server-selected destination.
+- `actions/staff.ts`: private staff creation and activation mutations.
+- `app/(doctor)/dashboard/staff/page.tsx`, `components/doctor/staff-manager.tsx`: doctor team management.
+- `lib/supabase/database.types.ts` and `supabase/migrations/`: database structure, owner bootstrap and audit compatibility.
+
+The historical `20261016180000_clinic_staff_rbac.sql` remains part of migration order. Its Clerk identity columns describe the original storage format; the later WhatsApp migration defines current membership behavior. Keep historical migrations and audits intact.
+
+## Verification workflow
+
+Install dependencies with `npm ci`, then run `npm run lint`, `npx tsc --noEmit`, `npm test` and `npm run build`. The test command uses pinned `tsx` and PGlite development dependencies. No successful check or deployment is asserted here.
+
+In a migrated staging environment, verify first-owner bootstrap, separate doctor/nurse/secretary OTP sign-in, normal patient sign-in, safe return destinations, restricted actions and direct routes, owner protection, and loss of clinic access after disabling a staff member. Confirm old sessions require a fresh OTP and historical staff/appointment audits remain available to authorized doctors.

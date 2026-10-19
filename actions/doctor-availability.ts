@@ -2,8 +2,7 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { auth } from "@clerk/nextjs/server";
-import { isAuthorizedDoctor } from "@/lib/auth/doctor-access";
+import { requireClinicPermission } from "@/lib/auth/clinic-actor";
 import { createServiceClient } from "@/lib/supabase/server";
 import { isISODate, isClockTime } from "@/lib/clinic-time";
 
@@ -15,8 +14,7 @@ const availabilitySchema = z.object({
 });
 
 export async function addAvailability(input: z.infer<typeof availabilitySchema>) {
-  const { userId } = await auth();
-  if (!isAuthorizedDoctor(userId)) return { success: false as const, error: "unauthenticated" as const };
+  if (!await requireClinicPermission("schedule:manage")) return { success: false as const, error: "unauthenticated" as const };
 
   const parsed = availabilitySchema.safeParse(input);
   if (!parsed.success || parsed.data.startTime >= parsed.data.endTime ||
@@ -39,8 +37,7 @@ export async function addAvailability(input: z.infer<typeof availabilitySchema>)
 }
 
 export async function deleteAvailability(id: string) {
-  const { userId } = await auth();
-  if (!isAuthorizedDoctor(userId)) return { success: false as const, error: "unauthenticated" as const };
+  if (!await requireClinicPermission("schedule:manage")) return { success: false as const, error: "unauthenticated" as const };
   if (!z.string().uuid().safeParse(id).success) return { success: false as const, error: "invalid_input" as const };
 
   const supabase = createServiceClient();
@@ -52,8 +49,7 @@ export async function deleteAvailability(id: string) {
 }
 
 export async function toggleAvailabilityActive(id: string, isActive: boolean) {
-  const { userId } = await auth();
-  if (!isAuthorizedDoctor(userId)) return { success: false as const, error: "unauthenticated" as const };
+  if (!await requireClinicPermission("schedule:manage")) return { success: false as const, error: "unauthenticated" as const };
 
   const supabase = createServiceClient();
   const { data, error } = await supabase.from("availability").update({ is_active: isActive })
@@ -77,8 +73,7 @@ const blockedDateSchema = z.object({
 });
 
 export async function addBlockedDate(input: z.infer<typeof blockedDateSchema>) {
-  const { userId } = await auth();
-  if (!isAuthorizedDoctor(userId)) return { success: false as const, error: "unauthenticated" as const };
+  if (!await requireClinicPermission("schedule:manage")) return { success: false as const, error: "unauthenticated" as const };
 
   const parsed = blockedDateSchema.safeParse(input);
   if (!parsed.success) return { success: false as const, error: "invalid_input" as const };
@@ -99,8 +94,7 @@ export async function addBlockedDate(input: z.infer<typeof blockedDateSchema>) {
 }
 
 export async function deleteBlockedDate(id: string) {
-  const { userId } = await auth();
-  if (!isAuthorizedDoctor(userId)) return { success: false as const, error: "unauthenticated" as const };
+  if (!await requireClinicPermission("schedule:manage")) return { success: false as const, error: "unauthenticated" as const };
 
   const supabase = createServiceClient();
   const { data, error } = await supabase.from("blocked_dates").delete().eq("id", id).select("id").maybeSingle();

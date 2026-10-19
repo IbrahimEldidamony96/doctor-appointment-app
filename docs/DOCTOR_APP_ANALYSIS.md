@@ -4,6 +4,8 @@
 > **Scope:** Static source-code review through GitHub connector; files and migrations inspected. **No build, runtime, provider sandbox, or database migration execution was performed.** Findings must be retested against a deployed environment and any newer commit.
 > **Purpose:** Stable reference for future ChatGPT/Codex sessions; do not treat this file as executable truth after the source commit changes. No application logic was changed by this report.
 
+> **Historical authentication snapshot:** This report describes the source commit above, including Clerk and the old patient cookie. Current sign-in uses WhatsApp OTP for patients and approved clinic staff. Use [WhatsApp authentication setup](WHATSAPP_AUTH.md) for migration, owner provisioning, sessions and permissions; do not follow this report's old authentication setup.
+
 ## Executive summary
 
 A single-clinic Arabic/RTL scheduling application ("موعد") with separate doctor and patient authentication. It contains working application surface area for patients to log in using WhatsApp OTP, view/book/cancel appointments, initiate Paymob payment, update a profile and submit reviews, plus a Clerk-based doctor dashboard for status/availability/settings/review moderation/stats. The database migrations demonstrate a more mature, transactional design than the current runtime integrations: important atomic SQL functions are **present but not invoked** by the corresponding server actions and routes.

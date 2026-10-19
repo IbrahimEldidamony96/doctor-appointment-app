@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createTestDatabase } from "./helpers/database";
+import { createTestDatabase, seedStaff } from "./helpers/database";
 
 const staffId = "user_staff123456789";
 async function setup() {
   const db = await createTestDatabase();
+  await seedStaff(db, staffId, 'secretary');
   await db.exec("insert into clinic.settings(clinic_name) values ('Clinic')");
   const { rows: dates } = await db.query<{ day: string; other_day: string }>(`
     select ((now() at time zone 'Africa/Cairo')::date + 2)::text as day,

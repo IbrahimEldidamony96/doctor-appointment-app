@@ -47,3 +47,21 @@ test("production checks require approved templates, HTTPS and independent secret
   assert.ok(result.errors.some((issue) => issue.includes("HTTPS")));
   assert.ok(result.errors.some((issue) => issue.includes("independent secrets")));
 });
+
+test("WhatsApp login configuration does not require a separate identity provider", () => {
+  const result = inspectEnvironment({
+    NEXT_PUBLIC_SUPABASE_URL: "https://configuration-tests.invalid",
+    SUPABASE_SERVICE_ROLE_KEY: "sb_secret_test_private_key",
+    WHATSAPP_CLOUD_API_TOKEN: "test-whatsapp-token",
+    WHATSAPP_PHONE_NUMBER_ID: "123456789",
+    PAYMOB_SECRET_KEY: "test-paymob-secret",
+    PAYMOB_PUBLIC_KEY: "test-paymob-public",
+    PAYMOB_INTEGRATION_ID: "1234",
+    PAYMOB_HMAC_SECRET: "test-paymob-hmac",
+    NEXT_PUBLIC_APP_URL: "http://localhost:3000",
+    PATIENT_JWT_SECRET: "session-test-secret-at-least-thirty-two-bytes",
+    OTP_HASH_SECRET: "otp-test-secret-at-least-thirty-two-bytes",
+    CRON_SECRET: "cron-test-secret-at-least-thirty-two-bytes",
+  });
+  assert.deepEqual(result.errors, []);
+});

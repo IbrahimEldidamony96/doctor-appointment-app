@@ -1,7 +1,6 @@
 import "server-only";
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM_EMAIL = process.env.RESEND_FROM_EMAIL ?? "clinic@example.com";
 
 const HTML_ENTITIES: Record<string, string> = {
@@ -14,6 +13,7 @@ export function escapeHtml(value: string): string {
 
 async function sendNotification(to: string | null, patientName: string | null, subject: string, message: string) {
   if (!to || !process.env.RESEND_API_KEY || !process.env.RESEND_FROM_EMAIL) return;
+  const resend = new Resend(process.env.RESEND_API_KEY);
   const name = escapeHtml(patientName ?? "");
   const safeMessage = escapeHtml(message);
   const result = await resend.emails.send({

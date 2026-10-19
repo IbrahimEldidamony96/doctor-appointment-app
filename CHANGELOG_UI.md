@@ -1,5 +1,17 @@
 # UI & client flow update
 
+## WhatsApp-only authentication update
+
+- Patients, doctors, nurses and secretaries now use `/login` and `/verify` with WhatsApp OTP. Normal sign-in sends approved staff to `/dashboard` and patients to `/book`; permitted explicit destinations are preserved.
+- `/sign-in` redirects to `/login?redirect=/dashboard` for existing clinic bookmarks. The public header/mobile menu provides dashboard access for signed-in staff; the footer provides a clinic entry link.
+- Clerk has been removed. Clinic access requires a current, active phone membership; patients cannot choose staff roles during sign-in.
+- Apply all database migrations before deploying this version. Privately provision the first owner with `npm run bootstrap:doctor -- +201xxxxxxxxx "Doctor name"`, then verify that number with WhatsApp OTP. Doctors manage additional doctor, nurse and secretary accounts at `/dashboard/staff`; owner and self-deactivation are blocked.
+- See [WhatsApp authentication setup](docs/WHATSAPP_AUTH.md) for current configuration, migration and verification steps. No live migration or provider verification is claimed here.
+
+## Original UI update (historical)
+
+The sections below describe the original UI release. Their separate Clerk sign-in and doctor allowlist configuration were superseded by the WhatsApp-only update above and must not be used for current setup.
+
 ## Pages added / redesigned
 
 - `/` — Arabic RTL landing page with responsive hero, feature highlights, booking CTA

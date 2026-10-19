@@ -7,6 +7,8 @@
 
 This document complements `docs/DOCTOR_APP_ANALYSIS.md`. It tracks changes implemented in the feature branch (not merged), without claiming execution of tests or deployment.
 
+> **Historical phase handoff:** Authentication and session details below reflect this phase, including the Clerk allowlist and old 30-day patient session. They are not current setup instructions. See [WhatsApp authentication setup](WHATSAPP_AUTH.md) for shared OTP login, the database migration, private first-owner provisioning and current permissions.
+
 ## Implemented in the branch
 
 1. **Patient OTP:** `lib/auth/otp.ts` now calls serialized SQL functions `clinic.issue_otp` / `clinic.verify_otp`; send and verify routes validate request content type/JSON and return sanitized errors. Six-digit OTP and server-side hash secrets; approved Meta authentication template required.

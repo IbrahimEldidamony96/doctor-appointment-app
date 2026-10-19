@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createTestDatabase } from "./helpers/database";
+import { createTestDatabase, seedStaff } from "./helpers/database";
 
 type Appointment = { id: string; appointment_date: string; start_time: string; end_time: string; status: string };
 type Response = { success: boolean; reason?: string };
@@ -8,6 +8,7 @@ type Response = { success: boolean; reason?: string };
 const staff = "user_staff123456789";
 async function fixture() {
   const db = await createTestDatabase();
+  await seedStaff(db, staff, 'secretary');
   await db.exec("insert into clinic.settings(clinic_name) values ('Test clinic')");
   const dates = await db.query<{ first: string; next: string }>(`
     select ((now() at time zone 'Africa/Cairo')::date + 2)::text as first,
@@ -61,7 +62,7 @@ test("reschedule moves the same appointment, preserves status and produces exact
       "select reminder_sent_at::text as sent from clinic.appointments where id=$1", [appointmentId]);
     assert.equal(reminders.rows[0].sent, null);
     const audit = await db.query<{ actor: string; old_day: string; new_day: string }>(`
-      select actor_clerk_user_id as actor,old_date::text as old_day,new_date::text as new_day
+      select actor_id as actor,old_date::text as old_day,new_date::text as new_day
       from clinic.appointment_reschedule_audit where appointment_id=$1`, [appointmentId]);
     assert.deepEqual(audit.rows, [{ actor: staff, old_day: first, new_day: next }]);
     assert.deepEqual(await move(), { success: false, reason: "stale" });
@@ -75,7 +76,10 @@ test("same slot, overlap and blocked dates all reject without creating audit ent
       { success: false, reason: "same_slot" });
     await db.query(`insert into clinic.appointments(patient_id,appointment_date,start_time,end_time)
       select patient_id,$1,'10:00','10:30' from clinic.appointments where id=$2`, [next, appointmentId]);
-    await assert.rejects(move(), (error: unknown) => (error as { code?: string }).code === "23P01");
+    // An exact occupied slot can hit either the unique-start constraint or the
+    // interval exclusion constraint; both must reject the move atomically.
+    await assert.rejects(move(), (error: unknown) =>
+      ["23505", "23P01"].includes((error as { code?: string }).code ?? ""));
     await db.query("insert into clinic.blocked_dates(date) values($1)", [next]);
     await assert.rejects(move({ start: "11:00", end: "11:30" }),
       (error: unknown) => (error as { code?: string }).code === "23514");
